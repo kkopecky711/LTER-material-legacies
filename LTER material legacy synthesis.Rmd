@@ -1,0 +1,1763 @@
+---
+title: "LTER material legacy synthesis"
+author: "Kai L. Kopecky"
+date: "2024-08-20"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(tidyverse)
+library(janitor)
+library(glmmTMB)
+library(ggeffects)
+library(broom.mixed)
+```
+
+# Exploratory looks at data from LTER sites
+
+## Konza Prairie
+```{r}
+# Explore relationship of previous year dead biomass on current year productivity
+# Should not group forbs and grass; grass could be considered the foundation species, and forbs neither produce legacies in the same way, nor do are they annuals
+
+# Look at relationship between dead biomass and biomass of forbs and woody 
+
+# potential relationships between dead biomass and abiotic conditions (soil temperature, soil moisture, N content)
+
+# Look into % cover data as well
+
+# Watershed = fire treatment: 004 means burned every four years, 020 = every 20 years, b = statistical replicate
+# Soiltype: tu = lowland, thick, moist; fl = upland, thin, rocky, drier
+
+# Consider trying a running mean approach
+
+knz <- read_csv("Data/Konza Prairie/PAB011.csv") %>% 
+  clean_names() %>% 
+  filter(pryrdead >=0,
+         lvgrass != "NA")
+
+hist(knz$lvgrass)
+hist(log(knz$lvgrass))
+
+hist(knz$pryrdead)
+hist(log(knz$pryrdead))
+
+# Exploratory graph
+ggplot(knz, aes(x = pryrdead, y = lvgrass, color = watershed)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", 
+              aes(color = watershed)) +
+  #scale_x_continuous(expand = c(0.01,1)) +
+ # scale_y_continuous(expand = c(0.01,1)) +
+  labs(x = "Lagged dead biomass",
+       y = "Current year biomass") +
+  theme_classic()
+
+# Forbs ~ previous year
+ggplot(knz, aes(x = pryrdead, y = forbs, color = watershed)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", 
+              aes(color = watershed)) +
+  labs(x = "Lagged dead biomass",
+       y = "Current year forb biomass") +
+  theme_classic()
+
+ggplot(knz, aes(x = pryrdead, y = woody, color = watershed)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm", 
+              aes(color = watershed)) +
+  labs(x = "Lagged dead biomass",
+       y = "Current year forb biomass") +
+  theme_classic()
+
+```
+
+Mixed effects models
+```{r}
+# glmm of total live biomass ~ previous year dead biomass
+knz.glmm <- glmmTMB(lvgrass ~ pryrdead + (1|transect),
+                    data = knz)
+summary(knz.glmm)
+
+predictions.knz <- ggpredict(knz.glmm, terms = ~ pryrdead + (1|transect))
+plot(predictions.knz)
+predictions.knz <- as.data.frame(predictions.knz)
+
+# Model visualization
+ggplot()+
+  geom_point(data = knz, 
+             aes(x = pryrdead, y = lvgrass),
+             alpha = 0.6,
+             size = 2) +
+  geom_ribbon(data = predictions.knz, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              fill = "#3B4F8E",
+              alpha =0.5)+
+  geom_line(data = predictions.knz, 
+            aes(x = x , y = predicted, group = group)) +
+  scale_x_continuous(expand = c(0.01,1)) +
+  scale_y_continuous(#limits = c(0,160), 
+                     expand = c(0.01,1)) +
+  labs(x = "Previous year dead biomass (g/m^2)",
+       y = "Current year live biomass (g/m^2)") +
+  theme_classic()
+
+# glmm of total live biomass ~ previous year dead biomass*watershed
+knz.glmm <- glmmTMB(lvgrass ~ pryrdead*watershed + (1|transect),
+                    data = knz)
+summary(knz.glmm)
+
+predictions.knz <- ggpredict(knz.glmm, terms = ~ pryrdead*watershed + (1|transect))
+plot(predictions.knz)
+predictions.knz <- as.data.frame(predictions.knz)
+
+# Model visualization
+ggplot()+
+  geom_point(data = knz, 
+             aes(x = pryrdead, y = lvgrass, color = watershed),
+             alpha = 0.6,
+             size = 2) +
+  geom_ribbon(data = predictions.knz, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high, fill = group), 
+              #fill = "#3B4F8E",
+              alpha =0.5)+
+  geom_line(data = predictions.knz, 
+            aes(x = x , y = predicted, group = group, color = group)) +
+  scale_x_continuous(expand = c(0.01,1)) +
+  scale_y_continuous(#limits = c(0,160), 
+                     expand = c(0.01,1)) +
+  labs(x = "Previous year dead biomass (g/m^2)",
+       y = "Current year live biomass (g/m^2)") +
+  theme_classic()
+
+```
+
+```{r}
+# Normalized biomasses
+# Scaled to maximum values
+knz <- knz %>% 
+  mutate(pryrdead.norm = pryrdead/max(knz$pryrdead),
+         live_grass.norm = lvgrass/max(knz$lvgrass))
+
+# glmm of normalized total live biomass ~ normalized previous year dead biomass
+knz.norm.glmm <- glmmTMB(live_grass.norm ~ pryrdead.norm + (1|transect),
+                    data = knz)
+summary(knz.glmm)
+
+predictions.knz.norm <- ggpredict(knz.norm.glmm, terms = ~ pryrdead.norm + (1|transect))
+plot(predictions.knz.norm)
+predictions.knz.norm <- as.data.frame(predictions.knz.norm)
+
+# Model visualization of normalized biomasses
+ggplot()+
+  geom_point(data = knz, 
+             aes(x = pryrdead.norm, y = live_grass.norm),
+             alpha = 0.6,
+             size = 2) +
+  geom_ribbon(data = predictions.knz.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = predictions.knz.norm, 
+            aes(x = x , y = predicted))+
+  scale_x_continuous(expand = c(0,0.02),
+                     limits = c(0,1.01)) +
+  scale_y_continuous(expand = c(0,0.02),
+                     limits = c(0,1.01)) +
+  labs(x = "Normalized previous year dead biomass",
+       y = "Nomralized live biomass") +
+  theme_classic()
+```
+
+```{r Analyses by plot}
+
+# Sum all biomass across plots within a year
+knz.year_totals <- knz %>% 
+  group_by(recyear, watershed, transect, plotnum) %>% 
+  summarize(live_biomass.total = sum(total_live_biomass),
+            #live_biomass.log = log(live_biomass.total + 1),
+            dead_biomass.prev = sum(pryrdead),
+            #dead_biomass.prev.log = log(dead_biomass.prev + 1),
+            dead_biomass.total = sum(total_dead_biomass))
+            #dead_biomass.log = log(dead_biomass.total + 1)) 
+
+ggplot(knz.year_totals, aes(x = dead_biomass.total, y = live_biomass.total, color = watershed)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  scale_x_continuous(expand = c(0.01,1)) +
+  scale_y_continuous(expand = c(0.01,1)) +
+  labs(x = "Previous year dead biomass",
+       y = "Current year live biomass") +
+  theme_classic()
+
+
+## glmm with total dead_biomass (previous + current year)
+knz.glmm <- glmmTMB(live_biomass.total ~ dead_biomass.total + (1|transect),
+                    data = knz.year_totals)
+summary(knz.glmm)
+
+predictions.knz <- ggpredict(knz.glmm, terms = ~dead_biomass.total + (1|transect))
+plot(predictions.knz)
+predictions.knz <- as.data.frame(predictions.knz)
+
+# Model visualization
+ggplot()+
+  geom_ribbon(data = predictions.knz, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = predictions.knz, 
+            aes(x = x , y = predicted))+
+  geom_point(data = knz.year_totals, 
+             aes(x = dead_biomass.total, y = live_biomass.total),
+             alpha = 0.6,
+             size = 2) +
+  labs(x = "Previous + current year dead biomass",
+       y = "Current year live biomass") +
+  theme_classic()
+
+## glmm with just prvious year dead biomass
+knz.glmm.prev <- glmmTMB(live_biomass.total ~ dead_biomass.prev + (1|transect),
+                    data = knz.year_totals)
+summary(knz.glmm.prev)
+
+predictions.knz.prev <- ggpredict(knz.glmm.prev, terms = ~dead_biomass.prev + (1|transect))
+plot(predictions.knz.prev)
+predictions.knz.prev <- as.data.frame(predictions.knz.prev)
+
+# Model visualization
+ggplot()+
+  geom_ribbon(data = predictions.knz.prev, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = predictions.knz.prev, 
+            aes(x = x , y = predicted))+
+  geom_point(data = knz.year_totals, 
+             aes(x = dead_biomass.prev, y = live_biomass.total),
+             alpha = 0.6,
+             size = 2) +
+  labs(x = "Previous year dead biomass",
+       y = "Current year live biomass") +
+  theme_classic()
+
+
+```
+
+
+## Virginia Coastal Reserve
+```{r Data cleaning and wrangling}
+
+# Use only reference sites; or, also use restored sites that are >= 6 years since construction
+
+# Plot juv denisty against day of year 
+
+# lump seasons; conservative approach could be to limit analysis to summer-fall
+
+# plot live oyster against dead
+
+vcr.raw <- read_csv("Data/Virginia Coastal/Oyster_Count_Data_2022_03_10.csv")
+
+# Filter original data for just live and dead oysters
+vcr <- read_csv("Data/Virginia Coastal/Oyster_Count_Data_2022_03_10.csv") %>% 
+  clean_names() %>% 
+  select(site, sample, date, species, species_count) %>% 
+  filter(species == c("Adult Oyster", "Box Adult Oyster", "Box Spat Oyster", "Spat Oyster")) %>% 
+  mutate(year = substr(date, nchar(date) - 1, nchar(date)),
+         year = paste0("20", year),
+         date = mdy(date), # Convert the date column to Date format
+         month = month(date), # Extract the month
+         season = case_when( # Assign seasons based on month
+          month %in% c(12, 1, 2) ~ "Winter",
+          month %in% c(3, 4, 5) ~ "Spring",
+          month %in% c(6, 7, 8) ~ "Summer",
+          month %in% c(9, 10, 11) ~ "Fall",
+          TRUE ~ NA_character_))
+
+
+# Create summary dataframe for juvenile oyster densities 
+vcr.juv_density <- vcr %>% 
+  mutate(species = case_when(species == "Adult Oyster" ~ "Adult",
+                             species == "Spat Oyster" ~ "Spat",
+                             TRUE ~ "Dead")) %>% 
+  filter(species != "Adult") %>% 
+  group_by(site, species, year, season) %>% 
+  summarize(mean_density = mean(species_count)) %>% 
+  pivot_wider(names_from = species, values_from = mean_density) %>% 
+  drop_na()
+
+# Explore seasonal trends in juvenile density
+vcr.juv_density.season <- vcr.juv_density %>% 
+  group_by(season) %>% 
+  summarize(agg.juv_density = sum(Spat),
+            mean.juv_density = mean(Spat),
+            se.juv_density = sd(Spat)/sqrt(n()))
+
+ggplot(vcr.juv_density.season, aes(x = season, y = agg.juv_density, fill = site)) +
+  geom_col(position = "dodge")
+
+ggplot(vcr.juv_density.season, aes(x = season, y = mean.juv_density)) +
+  geom_col(position = "dodge") +
+  geom_errorbar(aes(ymin = mean.juv_density - se.juv_density,
+                    ymax = mean.juv_density + se.juv_density),
+                    width = 0)
+
+# Create dataframe with dead oyster density lagged one year behind juvenile density
+vcr_lagged <- vcr.juv_density %>% 
+  group_by(site, season) %>% 
+  mutate(lagged_Dead = lag(Dead)) %>% 
+  filter(lagged_Dead < 100)
+
+## Visualizations
+# Juvenile oyster density ~ dead oyster density in previous year (lagged)
+ggplot(vcr_lagged, aes(x = lagged_Dead, y = Spat, color = season)) +
+  geom_point(alpha = 0.5,
+             aes(color = season)) +
+  geom_smooth(method = "lm",
+              aes(group = season)) +
+  #scale_x_continuous(expand = c(0.01,0)) +
+  #scale_y_continuous(expand = c(0.01,0)) +
+  labs(x = "Dead oyster density",
+       y = "Juvenile oyster density") +
+  theme_classic()
+
+# Normalized juvenile oyster density ~ normalized dead oyster density in previous year (lagged)
+ggplot(vcr_lagged, aes(x = lagged_dead.norm, y = spat.norm)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  scale_x_continuous(expand = c(0.01,0)) +
+  scale_y_continuous(expand = c(0.01,0)) +
+  labs(x = "Normalized lagged dead oyster density",
+       y = "Normalized juvenile oyster density") +
+  theme_classic()
+```
+
+```{r Analyses of juvenile oyster density ~ lagged dead oyster density}
+
+#Check normality of Spat and lagged_Dead
+hist(vcr_lagged$Spat)
+hist(vcr_lagged$lagged_Dead) # both positively skewed
+
+# Log-transform to increase normality
+vcr_lagged$spat.log <- log1p(vcr_lagged$Spat)  # log1p computes log(x + 1)
+vcr_lagged$lagged_dead.log <- log1p(vcr_lagged$lagged_Dead)
+
+hist(vcr_lagged$spat.log)
+hist(vcr_lagged$lagged_dead.log)
+
+# Simple linear model
+model <- lm(spat.log ~ lagged_dead.log, data = vcr_lagged)
+summary(model)
+
+# glmm of 
+juv_oyst.glmm <- glmmTMB(Spat ~ lagged_Dead + (1|site),
+                         data = vcr_lagged)
+summary(juv_oyst.glmm)
+
+predictions.juv_oyst <- ggpredict(juv_oyst.glmm, terms = ~lagged_Dead)
+plot(predictions.juv_oyst)
+predictions.juv_oyst <- as.data.frame(predictions.juv_oyst)
+
+# Model visualization
+ggplot()+
+  geom_ribbon(data = predictions.juv_oyst, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = predictions.juv_oyst, 
+            aes(x = x , y = predicted))+
+  geom_point(data = vcr_lagged, 
+             aes(x = lagged_Dead, y = Spat),
+             alpha = 0.6,
+             size = 2) +
+  labs(x = Dead~oyster~density~(Ind/0.25~m^2)~prev~yr,
+       y = Juvenile~oyster~density~(Ind/0.25~m^2)) +
+  theme_classic()
+
+# glmm without summer, due to opposite (negative) relationship in summer
+vcr_lagged.fall_spring <- vcr_lagged %>% 
+  filter(season != "Summer") %>% 
+  group_by(year, site) %>% 
+  summarize(agg.juv_density = sum(Spat),
+            agg.dead_density = sum(Dead))
+
+juv_oyst.glmm.fall_spring <- glmmTMB(agg.juv_density ~ agg.dead_density + (1|site),
+                         data = vcr_lagged.fall_spring)
+summary(juv_oyst.glmm.fall_spring)
+
+predictions.juv_oyst.fall_spring <- ggpredict(juv_oyst.glmm.fall_spring, terms = ~agg.dead_density)
+plot(predictions.juv_oyst.fall_spring)
+predictions.juv_oyst.fall_spring <- as.data.frame(predictions.juv_oyst.fall_spring)
+
+# Model visualization
+ggplot()+
+  geom_ribbon(data = predictions.juv_oyst.fall_spring, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = predictions.juv_oyst.fall_spring, 
+            aes(x = x , y = predicted))+
+  geom_point(data = vcr_lagged.fall_spring, 
+             aes(x = agg.dead_density, y = agg.juv_density),
+             alpha = 0.6,
+             size = 2) +
+  labs(x = "Dead oyster density",
+       y = "Juvenile oyster density") +
+  theme_classic()
+
+
+
+
+```
+
+```{r}
+## Normalized densities
+vcr_lagged.norm <- vcr_lagged.fall_spring %>%
+  mutate(dead.norm = agg.dead_density/max(vcr_lagged.fall_spring$agg.dead_density),
+         spat.norm = agg.juv_density/max(vcr_lagged.fall_spring$agg.juv_density))
+
+# glmm of normalized juvenile oyster density ~ normalized dead oyster density
+juv_oyst.norm.glmm <- glmmTMB(spat.norm ~ dead.norm + (1|site),
+                         data = vcr_lagged.norm)
+summary(juv_oyst.norm.glmm)
+
+predictions.juv_oyst.norm <- ggpredict(juv_oyst.norm.glmm, terms = ~dead.norm)
+plot(predictions.juv_oyst.norm)
+predictions.juv_oyst.norm <- as.data.frame(predictions.juv_oyst.norm)
+
+# Model visualization
+ggplot()+
+  geom_ribbon(data = predictions.juv_oyst.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = predictions.juv_oyst.norm, 
+            aes(x = x , y = predicted))+
+  geom_point(data = vcr_lagged.norm, 
+             aes(x = dead.norm, y = spat.norm),
+             alpha = 0.6,
+             size = 2) +
+  labs(x = "Normalized dead oyster density",
+       y = "Normalized juvenile oyster density") +
+  scale_x_continuous(expand = c(0,0.02),
+                     limits = c(0,1.01)) +
+  scale_y_continuous(expand = c(0,0.02),
+                     limits = c(0,1.01)) +
+  theme_classic()
+```
+
+
+```{r Time-averaged analysis}
+# summarize by year
+vcr_lagged.summary <- vcr_lagged %>% 
+  group_by(year) %>% 
+  summarize(mean_dead = mean(lagged_Dead),
+            se_dead = sd(lagged_Dead)/sqrt(n()),
+            mean_spat = mean(Spat),
+            se_spat = sd(Spat)/sqrt(n())) %>% 
+  filter(year != "2006")
+
+ggplot(vcr_lagged.summary, aes(x = mean_dead, y = mean_spat)) +
+  geom_point(size = 2) +
+  geom_errorbarh(aes(xmax = mean_dead + se_dead,
+                    xmin = mean_dead - se_dead)) +
+  geom_errorbar(aes(ymax = mean_spat + se_spat,
+                    ymin = mean_spat - se_spat)) +
+  labs(x = "Dead oyster density (previous year)",
+       y = "Juvenile oyster density") +
+  theme_classic()
+
+```
+
+## Harvard Forest
+```{r}
+
+hvf <- read_csv("Data/Harvard Forest/hf126-02-tree.csv") %>% 
+  clean_names()
+
+```
+
+## H.J. Andrews Experimental Forest
+```{r}
+
+# Load in data and filter for observations wiht Study ID 'OHJA'
+hja.downed_wood <- read_csv("Data/Andrews Forest/Coarse woody debris/TD01204.csv") %>% 
+  clean_names() %>% 
+  filter(studyid == "OHJA")
+
+# Summarize deadwood metrics by plot
+hja.downed_wood.summary <- hja.downed_wood %>% 
+  group_by(stand, plot, year) %>% 
+  summarize(total_volume = sum(wvol),
+            total_mass = sum(wmass),
+            total_cover = sum(pcover),
+            total_area = sum(surfarea))
+
+write_csv(hja.downed_wood.summary, "Data/Andrews Forest/Coarse woody debris/OHJA_downed wood summary.csv")
+
+```
+
+## Moorea Coral Reef
+```{r}
+
+## Live coral and macroalgae
+# Load wide data table
+mcr_coral.wide <- read_csv("Data/Moorea Coral Reef/knb-lter-mcr.4_2_20240105.csv") %>% 
+  clean_names() %>% 
+  dplyr::select(-c(3:6, 21, 34)) 
+
+# Convert to long format
+mcr_coral.long <- mcr_coral.wide %>% 
+  pivot_longer(cols = c(3:28), names_to = "taxa", values_to = "percent_cover") %>%
+  mutate(funct_group = case_when(taxa == "macroalgae" ~ "Macroalgae",
+                                 TRUE ~ "Hard coral"),
+         percent_cover = replace(percent_cover, percent_cover == "na", 0),
+         percent_cover = as.numeric(percent_cover))
+
+mcr <- mcr_coral.long %>% 
+  mutate(site = str_sub(location, 0, 6)) %>% 
+  filter(str_detect(location, "Outer"))
+
+## Dead coral
+mcr.dead <- read_csv("Data/Moorea Coral Reef/MCR_LTER_CoralStruct_Coral_Colony_Desc_2006-2011_20120530.csv") %>% 
+  clean_names()
+
+mcr.dead <- mcr.dead %>% 
+  filter(alive_or_dead == "Dead") %>% 
+  mutate(perc_cover = (area_cm2/2500)*100)
+
+ggplot(mcr.dead, aes(x = year, y = perc_cover, color = site)) +
+  geom_point()
+
+ggplot(mcr, aes(x = date, y = perc_cover, color = site)) +
+  geom_point()
+
+```
+
+#### Change in live coral cover ~ dead coral cover
+```{r Data wrangling for dead coral cover and algae}
+
+# Live and dead coral annotations
+regions_master <- read_csv("Data/Moorea Coral Reef/Regions_master.csv") %>% 
+  clean_names
+
+# Create dataframe of dead coral cover
+dead_coral <- regions_master %>%
+  filter(tag_lab_class_name == "Dead coral") %>% 
+  group_by(plot, treatment, tag_lab_date) %>% 
+  summarize(dead_coral.m_sq = sum(tag_lab_surf_area)*0.0001) %>% 
+  mutate(time_point = case_when(tag_lab_date == "8/1/19" ~ 2019,
+                                       tag_lab_date == "8/1/20" ~ 2020,
+                                       tag_lab_date == "8/1/21" ~ 2021,
+                                       tag_lab_date == "8/1/22" ~ 2022,
+                                       tag_lab_date == "8/1/23" ~ 2023),
+         time_point = as.factor(time_point))
+
+```
+
+#### Annual loss of live coral ~ dead coral cover
+```{r Data wrangling for live coral loss ~ algae cover}
+
+# Create dataframe for live coral only
+live_coral <- regions_master %>% 
+  filter(tag_lab_class_name == "Pocillopora" | tag_lab_class_name == "Acropora") %>% 
+  group_by(plot, treatment, tag_lab_date) %>% 
+  summarize(live_coral.total_surf = sum(tag_lab_surf_area)) %>% 
+  mutate(m_sq = live_coral.total_surf*0.0001,
+         years_since_start = case_when(tag_lab_date == "8/1/19" ~ 0,
+                                       tag_lab_date == "8/1/20" ~ 1,
+                                       tag_lab_date == "8/1/21" ~ 2,
+                                       tag_lab_date == "8/1/22" ~ 3,
+                                       tag_lab_date == "8/1/23" ~ 4),
+         time_point = case_when(tag_lab_date == "8/1/19" ~ 2019,
+                                       tag_lab_date == "8/1/20" ~ 2020,
+                                       tag_lab_date == "8/1/21" ~ 2021,
+                                       tag_lab_date == "8/1/22" ~ 2022,
+                                       tag_lab_date == "8/1/23" ~ 2023),
+         time_point = as.factor(time_point))
+
+
+# Create dataframe for proportional changes in live coral in each year (time period)
+coral_change.prop <- live_coral %>%
+  select(-c(tag_lab_date, live_coral.total_surf, years_since_start)) %>%
+  rename(live_coral.m_sq = m_sq) %>%
+  pivot_wider(names_from = time_point, values_from = live_coral.m_sq) %>%
+  rename(year_0 = "2019",
+         year_1 = "2020",
+         year_2 = "2021",
+         year_3 = "2022",
+         year_4 = "2023") %>%
+  mutate(delta.1 = (year_1 - year_0)/year_0,
+         delta.2 = (year_2 - year_1)/year_1,
+         delta.3 = (year_3 - year_2)/year_2,
+         delta.4 = (year_4 - year_3)/year_3)
+
+coral_change.prop <- coral_change.prop %>%
+  select(-c(year_0, year_1, year_2, year_3, year_4)) %>%
+  pivot_longer(cols = c("delta.1", "delta.2", "delta.3", "delta.4"),
+               names_to = "delta_year",
+               values_to = "delta_coral") %>%
+  drop_na() %>%
+  mutate(period = case_when(delta_year == "delta.1" ~ "2019 - 2020",
+                          delta_year == "delta.2" ~ "2020 - 2021",
+                          delta_year == "delta.3" ~ "2021 - 2022",
+                          delta_year == "delta.4" ~ "2022 - 2023"))
+
+# Create dataframe for average algae cover in each time period
+dead_coral.means <- dead_coral %>%
+  select(-tag_lab_date) %>% 
+  pivot_wider(names_from = time_point, values_from = dead_coral.m_sq) %>%
+  rename(year_0 = "2019",
+         year_1 = "2020",
+         year_2 = "2021",
+         year_3 = "2022",
+         year_4 = "2023") %>%
+  mutate(mean.1 = (year_1 + year_0)/2,
+         mean.2 = (year_2 + year_1)/2,
+         mean.3 = (year_3 + year_2)/2,
+         mean.4 = (year_4 + year_3)/2)
+
+dead_coral.means <- dead_coral.means %>%
+  select(-c(year_0, year_1, year_2, year_3, year_4)) %>%
+  pivot_longer(cols = c("mean.1", "mean.2", "mean.3", "mean.4"),
+               names_to = "period",
+               values_to = "dead.mean") %>%
+  drop_na() %>%
+  mutate(period = case_when(period == "mean.1" ~ "2019 - 2020",
+                          period == "mean.2" ~ "2020 - 2021",
+                          period == "mean.3" ~ "2021 - 2022",
+                          period == "mean.4" ~ "2022 - 2023"))
+
+live_dead <- merge(coral_change.prop, dead_coral.means)
+live_dead <- live_dead %>% 
+  mutate(delta_coral.trans = delta_coral*(-1))
+
+ggplot(live_dead, aes(x = dead.mean, y = delta_coral)) +
+  geom_point()
+
+```
+
+```{r Stats for change in coral ~ dead coral cover}
+
+# Linear mixed effects model of annual proportional change in coral cover ~ mean algae cover in the same period; time period and plot identity as random effects
+live_dead.glmm <- glmmTMB(delta_coral ~ dead.mean + (1|period) + (1|plot), 
+                    family = gaussian(link = "identity"),
+                    data = live_dead)
+summary(live_dead.glmm)
+
+# Get confidence interval for model
+confint(live_dead.glmm)
+
+# Check residuals
+hist(residuals(live_dead.glmm))
+car::qqPlot(residuals(live_dead.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(live_dead.glmm, terms = ~dead.mean))
+live_dead.predictions <- as.data.frame(ggpredict(live_dead.glmm, terms = ~dead.mean))
+
+```
+
+```{r}
+live_dead <- live_dead %>% 
+  mutate(delta_coral.norm = (delta_coral/-0.4589132)*(-1),
+         dead.mean.norm = dead.mean/4.5809965)
+
+live_dead.norm.glmm <- glmmTMB(delta_coral.norm ~ dead.mean.norm + (1|period) + (1|plot), 
+                    family = gaussian(link = "identity"),
+                    data = live_dead)
+summary(live_dead.glmm)
+
+plot(ggpredict(live_dead.norm.glmm, terms = ~dead.mean.norm))
+live_dead.predictions.norm <- as.data.frame(ggpredict(live_dead.norm.glmm, terms = ~dead.mean.norm))
+```
+
+```{r Visualizaton of proportional coral change ~ mean dead cover in each period}
+
+# Model visualization
+live_dead %>%
+  ggplot()+
+  geom_ribbon(data = live_dead.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = live_dead.predictions, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = dead.mean, y = delta_coral),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = Mean~annual~dead~coral~cover~(m^2),
+       y = "Annual prop. change in live coral cover") +
+  # scale_shape_manual(values = c(19,17),
+  #                    labels = c("Removal", "Retention"),
+  #                    name = "Skeletal treatment") +
+  theme_classic(base_size = 12)
+
+# Normalized
+live_dead %>%
+  ggplot()+
+  geom_ribbon(data = live_dead.predictions.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = live_dead.predictions.norm, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = dead.mean.norm, y = delta_coral.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized annual dead coral cover",
+       y = "Normalized annual change in live coral") +
+  scale_x_continuous(expand = c(0,0.02),
+                     limits = c(0,1.01)) +
+  #scale_y_continuous(expand = c(0,0.02),
+                     #limits = c(0,-1.01)) +
+  theme_classic(base_size = 10)
+
+```
+
+## Santa Barbara Coastal
+
+Questions:
+1. What is the transect/quadrat sampling structure?
+
+2. What would dead holdfasts be likely to influence? Abundance of certain species? If so, which species?
+
+Notes from meeting with Kyle:
+Parse out the algae and invert species further
+- Look at relationships between dead holdfasts and macrocystis, holdfasts and canopy-forming (macrocystis, cystoseira, egregia, and sargassum), dead holdfasts and  understory algal species (everything else); compare this with all algae grouped together
+- For inverts, parse out mobile vs sessile, look at relationship between holdfasts and sessile
+
+- Maybe remove quads with 0% cover of dead holdfasts
+
+```{r}
+
+# sbc <- read_csv("Data/Santa Barbara Coastal/Annual_Cover_All_Years_20240823.csv") %>% 
+#   clean_names() %>% 
+#   filter(group != "INVERT")
+# 
+# write_csv(sbc, "Data/Santa Barbara Coastal/Annual_Cover_All_Years_algae-only.csv")
+
+sbc <- read_csv("Data/Santa Barbara Coastal/Annual_Cover_All_Years_algae-only.csv") %>% 
+  clean_names() 
+
+# Create dataframe with only dead macrocystis holdfasts
+sbc_dead <- sbc %>%
+  filter(sp_code == "DMH",
+         percent_cover > -1) %>%
+  select(year, site, transect, quad, side, percent_cover) %>%
+  rename(dmh_cover = percent_cover)
+
+# Look at distribution of dead holdfast cover on different transects over time
+sbc_dead %>%
+  group_by(year, site, transect, quad) %>%
+  summarize(dead_cover = sum(dmh_cover)) %>%
+  ggplot(aes(x = dead_cover)) +
+    geom_histogram() +
+    facet_wrap(~year)
+
+```
+
+```{r}
+# Create dataframe of inverts and algae only
+sbc.groups <- sbc %>%
+  filter(percent_cover > -1,
+         sp_code != "DMH",
+         group != "PLANT") %>%
+  group_by(year, site, transect, quad, group) %>%
+  summarize(total_cover = sum(percent_cover))
+
+sbc.merged <- merge(sbc.groups, sbc_dead)
+
+sbc.lagged <- sbc.merged %>%
+  mutate(dmh_cover.lagged = lag(dmh_cover))
+
+ggplot(sbc.merged, aes(x = dmh_cover, y = total_cover)) +
+  geom_point(alpha = 0.7) +
+  facet_wrap(~group) +
+  theme_classic()
+
+```
+
+### Live macrocystis cover ~ dead holdfast cover
+```{r}
+# Dataframe with only live macrocystis and dead holdfasts
+sbc_macro <- sbc %>%
+  filter(percent_cover > -1,
+         scientific_name == "Macrocystis pyrifera") %>% 
+  select(year, site, transect, quad, side, percent_cover) %>% 
+  rename(macro_cover = percent_cover)
+
+# Merge dead holdfast data and live macro data
+sbc.macro_dmh <- merge(sbc_macro, sbc_dead)
+
+ggplot(sbc.macro_dmh, aes(x = dmh_cover, y = macro_cover)) +
+  geom_jitter()
+
+# Try removing quadrats with 0% cover of dead holdfasts
+sbc.macro_dmh.no_zeroes <- sbc.macro_dmh %>% 
+  filter(dmh_cover > 0)
+
+ggplot(sbc.macro_dmh.no_zeroes, aes(x = dmh_cover, y = macro_cover)) +
+  geom_jitter()
+
+# Calculate means for site x year combos
+sbc.macro_dmh.summary <- sbc.macro_dmh.no_zeroes %>% 
+  group_by(site, year) %>% 
+  summarize(macro_cover.mean = mean(macro_cover),
+            dmh_cover.mean = mean(dmh_cover))
+
+ggplot(sbc.macro_dmh.summary, aes(x = dmh_cover.mean, y = macro_cover.mean)) +
+  geom_jitter()
+
+```
+
+Statistics
+```{r}
+
+# glmm of macro cover ~ dead holdfast cover
+sbc.macro_dmh.glmm <- glmmTMB(macro_cover.mean ~ dmh_cover.mean + (1|site) + (1|year),
+                              family = gaussian(link = "identity"),
+                              data = sbc.macro_dmh.summary)
+summary(sbc.macro_dmh.glmm)
+
+# Check residuals
+hist(residuals(sbc.macro_dmh.glmm))
+car::qqPlot(residuals(sbc.macro_dmh.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(sbc.macro_dmh.glmm, terms = ~dmh_cover.mean))
+sbc.macro_dmh.predictions <- as.data.frame(ggpredict(sbc.macro_dmh.glmm, terms = ~dmh_cover.mean))
+
+```
+
+```{r}
+# Normalized cover
+sbc.macro_dmh.summary <- sbc.macro_dmh.summary %>% 
+  mutate(macro_cover.norm = macro_cover.mean/max(macro_cover.mean),
+         dmh_cover.norm = dmh_cover.mean/max(dmh_cover.mean))
+
+# glmm of macro cover ~ dead holdfast cover
+sbc.macro_dmh.glmm.norm <- glmmTMB(macro_cover.norm ~ dmh_cover.norm + (1|site) + (1|year),
+                              family = gaussian(link = "identity"),
+                              data = sbc.macro_dmh.summary)
+summary(sbc.macro_dmh.glmm.norm)
+
+# Check residuals
+hist(residuals(sbc.macro_dmh.glmm.norm))
+car::qqPlot(residuals(sbc.macro_dmh.glmm.norm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(sbc.macro_dmh.glmm.norm, terms = ~dmh_cover.norm))
+sbc.macro_dmh.predictions.norm <- as.data.frame(ggpredict(sbc.macro_dmh.glmm.norm, terms = ~dmh_cover.norm))
+
+```
+
+Visualization of normalized model
+```{r}
+sbc.macro_dmh.summary %>%
+  ggplot()+
+  geom_ribbon(data = sbc.macro_dmh.predictions.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = sbc.macro_dmh.predictions.norm, 
+            aes(x = x, y = predicted))+
+  geom_jitter(aes(x = dmh_cover.norm, y = macro_cover.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized % cover of dead holdfasts",
+       y = "Normalized % cover of live Macrocystis") +
+  theme_classic(base_size = 12)
+```
+
+### Canopy-forming species cover ~ dead holdfast cover
+```{r}
+# Dataframe with only canopy-forming species and dead holdfasts
+sbc_canopy <- sbc %>%
+  filter(percent_cover > -1,
+         taxon_genus %in% c("Macrocystis", "Cystoseira", "Sargassum", "Egregia")) %>% 
+  select(year, site, transect, quad, side, percent_cover) %>% 
+  rename(canopy_cover = percent_cover)
+
+# Merge dead holdfast data and live macro data and remove quads with 0% dead holdfast cover
+sbc.canopy_dmh <- merge(sbc_canopy, sbc_dead)
+sbc.canopy_dmh <- sbc.canopy_dmh %>% 
+  filter(dmh_cover > 0)
+
+ggplot(sbc.canopy_dmh, aes(x = dmh_cover, y = canopy_cover)) +
+  geom_jitter()
+
+# summarize by year & site; calculate normalized values
+sbc.canopy_dmh.summary <- sbc.canopy_dmh %>% 
+  group_by(site, year) %>% 
+  summarize(canopy_cover.mean = mean(canopy_cover),
+            dmh_cover.mean = mean(dmh_cover)) %>% 
+  mutate(canopy_cover.norm = canopy_cover.mean/max(canopy_cover.mean),
+         dmh_cover.norm = dmh_cover.mean/max(dmh_cover.mean))
+
+```
+
+```{r}
+# glmm of macro cover ~ dead holdfast cover
+sbc.canopy_dmh.glmm.norm <- glmmTMB(canopy_cover.norm ~ dmh_cover.norm + (1|site) + (1|year),
+                              family = gaussian(link = "identity"),
+                              data = sbc.canopy_dmh.summary)
+summary(sbc.canopy_dmh.glmm.norm)
+
+# Check residuals
+hist(residuals(sbc.canopy_dmh.glmm.norm))
+car::qqPlot(residuals(sbc.canopy_dmh.glmm.norm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(sbc.canopy_dmh.glmm.norm, terms = ~dmh_cover.norm))
+sbc.canopy_dmh.predictions.norm <- as.data.frame(ggpredict(sbc.canopy_dmh.glmm.norm, terms = ~dmh_cover.norm))
+
+```
+
+Visualization of normalized model
+```{r}
+sbc.canopy_dmh.summary %>%
+  ggplot()+
+  geom_ribbon(data = sbc.canopy_dmh.predictions.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = sbc.canopy_dmh.predictions.norm, 
+            aes(x = x, y = predicted))+
+  geom_jitter(aes(x = dmh_cover.norm, y = canopy_cover.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized % cover of dead holdfasts",
+       y = "Normalized % cover of canopy-forming spp.") +
+  theme_classic(base_size = 12)
+```
+
+### Understory algal spp cover ~ dead holdfast cover
+```{r}
+# Dataframe with only understory species and dead holdfasts
+sbc_under <- sbc %>%
+  filter(percent_cover > -1,
+         group == "ALGAE",
+         taxon_genus != "Macrocystis", 
+         taxon_genus !="Cystoseira", 
+         taxon_genus != "Sargassum", 
+         taxon_genus !="Egregia") %>% 
+  select(year, site, transect, quad, side, percent_cover) %>% 
+  rename(under_cover = percent_cover)
+
+# Merge dead holdfast data and live macro data and remove quads with 0% dead holdfast cover
+sbc.under_dmh <- merge(sbc_under, sbc_dead)
+sbc.under_dmh <- sbc.under_dmh %>% 
+  filter(dmh_cover > 0)
+
+ggplot(sbc.under_dmh, aes(x = dmh_cover, y = under_cover)) +
+  geom_jitter()
+
+# summarize by year & site; calculate normalized values
+sbc.under_dmh.summary <- sbc.under_dmh %>% 
+  group_by(site, year) %>% 
+  summarize(under_cover.mean = mean(under_cover),
+            dmh_cover.mean = mean(dmh_cover)) %>% 
+  mutate(under_cover.norm = under_cover.mean/max(under_cover.mean),
+         dmh_cover.norm = dmh_cover.mean/max(dmh_cover.mean))
+
+```
+
+```{r}
+# glmm of macro cover ~ dead holdfast cover
+sbc.under_dmh.glmm.norm <- glmmTMB(under_cover.norm ~ dmh_cover.norm + (1|site) + (1|year),
+                              family = gaussian(link = "identity"),
+                              data = sbc.under_dmh.summary)
+summary(sbc.under_dmh.glmm.norm)
+
+# Check residuals
+hist(residuals(sbc.under_dmh.glmm.norm))
+car::qqPlot(residuals(sbc.under_dmh.glmm.norm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(sbc.under_dmh.glmm.norm, terms = ~dmh_cover.norm))
+sbc.under_dmh.predictions.norm <- as.data.frame(ggpredict(sbc.under_dmh.glmm.norm, terms = ~dmh_cover.norm))
+
+```
+
+Visualization of normalized model
+```{r}
+sbc.under_dmh.summary %>%
+  ggplot()+
+  geom_ribbon(data = sbc.under_dmh.predictions.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = sbc.under_dmh.predictions.norm, 
+            aes(x = x, y = predicted))+
+  geom_jitter(aes(x = dmh_cover.norm, y = under_cover.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized % cover of dead holdfasts",
+       y = "Normalized % cover of understory algal spp.") +
+  theme_classic(base_size = 12)
+```
+
+## Georgia Coastal Ecosystems
+```{r}
+
+gce.wrack_disturbance <- read_csv("Data/Georgia Coastal Ecosystems/PLT-GCEM-1801_9_0.CSV") %>% 
+  clean_names()
+
+```
+
+
+## Bonanza Creek
+```{r}
+
+bnz_seeds <- read_csv("Data/Bonanza Creek/AK2004 sites seeds.csv") %>% 
+  clean_names() %>% 
+  select(burn, site, bs_stg_ba, total_m2) %>% 
+  mutate(log_ba = log(bs_stg_ba + 0.1), # add small constants to avoid taking log of 0
+         log_total_seeds = log(total_m2 + 0.1)) %>% 
+    drop_na()
+
+hist(bnz_seeds$log_ba)
+hist(bnz_seeds$log_total_seeds)
+
+ggplot(bnz_seeds, aes(x = log_ba, y = log_total_seeds)) +
+  geom_point() +
+  #geom_smooth(method = "lm") +
+  theme_classic()
+
+```
+
+Statistics for BNZ seed data
+```{r}
+
+bnz_glmm <- glmmTMB(log_total_seeds ~ log_ba + (1|burn),
+                    family = gaussian(link = "identity"),
+                    data = bnz_seeds)
+
+summary(bnz_glmm)
+
+# Check residuals
+hist(residuals(bnz_glmm))
+car::qqPlot(residuals(bnz_glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(bnz_glmm, terms = ~log_ba))
+bnz_seeds.predictions <- as.data.frame(ggpredict(bnz_glmm, terms = ~log_ba))
+
+```
+
+Model visualization
+```{r}
+bnz_seeds %>%
+  ggplot()+
+  geom_ribbon(data = bnz_seeds.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = bnz_seeds.predictions, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = log_ba, y = log_total_seeds),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Log standing basal area of Spruce (m^2/ha)",
+       y = "Log seed density (#/m^2)") +
+  theme_classic(base_size = 12)
+```
+
+Normalized model
+```{r}
+
+# Scale predictor and response variable to their respective maximum values
+bnz_seeds <- bnz_seeds %>% 
+  mutate(log_ba.norm = (log_ba/max(log_ba)),
+         log_seeds.norm = log_total_seeds/max(log_total_seeds))
+
+bnz_seeds.norm.glmm <- glmmTMB(log_seeds.norm ~ log_ba.norm + (1|burn),
+                    family = gaussian(link = "identity"),
+                    data = bnz_seeds)
+summary(bnz_seeds.norm.glmm)
+
+plot(ggpredict(bnz_seeds.norm.glmm, terms = ~log_ba.norm))
+bnz_seeds.predictions.norm <- as.data.frame(ggpredict(bnz_seeds.norm.glmm, terms = ~log_ba.norm))
+```
+
+Model visualization
+```{r}
+bnz_seeds %>%
+  ggplot()+
+  geom_ribbon(data = bnz_seeds.predictions.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = bnz_seeds.predictions.norm, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = log_ba.norm, y = log_seeds.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized standing basal area of Spruce",
+       y = "Normalized seed density") +
+  theme_classic(base_size = 12)
+```
+
+## Luquillo
+
+```{r}
+# Load and clean seedling data, calculate seedling volumes
+luq.seedlings <- read_csv("Data/Luquillo/CTESeedlingMeasurementData2003-20212.csv") %>% 
+  clean_names() %>% 
+  #select(-c(10:14)) %>% 
+  #drop_na() %>% 
+  mutate(start_date = as.character(start_date),
+         year = as.numeric(substr(start_date, 1, 4)))
+         #seedling_ba = (pi/4)*diameter,
+         #seedling_count = 1) 
+
+luq.litter <- read_csv("Data/Luquillo/CTE-Litterfall-data.csv") %>% 
+  clean_names() %>% 
+  select(-c(8:10)) %>% 
+  mutate(date = as.character(date),
+         year = as.numeric(substr(date, 1, 4)),
+         litter_mass = leaves_in_g + wood_in_g + misc_in_g + fruits_seeds_flower_g) 
+
+luq.cte_ttt <- read_csv("Data/Luquillo/CTE_Treatments_0.csv") %>% 
+  clean_names() %>% 
+  select(-c(latitude, longitude, subplot)) %>% 
+  distinct()
+  
+```
+
+```{r}
+# Seedling mortality
+luq.seedlings_mortality <- luq.seedlings %>% 
+  filter(#year %in% c(2004, 2005, 2006, 2007, 2008),
+         #year == 2004 | year == 2005,
+         dead_alive_notfound != "NF") %>% 
+  mutate(mortality = if_else(dead_alive_notfound == "D", 1, 0),
+         survival = if_else(dead_alive_notfound == "A", 1, 0),
+         year = as.numeric(year))
+
+luq.seedlings_mortality <- merge(luq.seedlings_mortality, luq.cte_ttt)
+
+luq.seedlings_mortality <- luq.seedlings_mortality %>% 
+  relocate(treatment, .before = block) %>% 
+  #filter(height != "NA") %>% 
+  select(-c(lessthan10cm, comments, new))
+
+luq.mortality_counts <- luq.seedlings_mortality %>%   
+  group_by(treatment, year, block, plot) %>% 
+  summarize(mortality.count = sum(mortality),
+            seedling.count = sum(survival))
+
+# Summary stats  
+mortality.summary <- luq.mortality_counts %>% 
+  group_by(treatment, year) %>% 
+  summarize(mortality.mean = mean(mortality.count),
+            mortality.se = sd(mortality.count)/sqrt(n()),
+            survival.mean = mean(seedling.count),
+            survival.se = sd(seedling.count)/sqrt(n()))
+
+ggplot(mortality.summary, aes(x = year, mortality.mean, color = treatment)) +
+  geom_line(aes(group = treatment,
+                color = treatment)) +
+  geom_errorbar(aes(ymax = mortality.mean + mortality.se,
+                    ymin = mortality.mean - mortality.se),
+                width = 0) +
+  geom_point(aes(color = treatment)) +
+  labs(x = "Year",
+       y = "Seedling mortality (#/yr)") +
+  theme_classic()
+
+ggplot(mortality.summary, aes(x = year, survival.mean, color = treatment)) +
+  geom_line(aes(group = treatment,
+                color = treatment)) +
+  geom_errorbar(aes(ymax = survival.mean + survival.se,
+                    ymin = survival.mean - survival.se),
+                width = 0) +
+  geom_point(aes(color = treatment)) +
+  labs(x = "Year",
+       y = "Seedling count") +
+  theme_classic()
+  
+```
+
+Mixed effects model, seedling count ~ ttt
+```{r}
+# Remove first year of experiment (pre-manipulation)
+luq.seeding_counts <- luq.mortality_counts %>% 
+  filter(year != 2004) %>% 
+  mutate(year = as.factor(year))
+  
+# Model 
+luq.seedling_counts.glmm <- glmmTMB(seedling.count ~ treatment*year + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seeding_counts)
+
+# Check residuals
+hist(residuals(luq.seedling_counts.glmm))
+car::qqPlot(residuals(luq.seedling_counts.glmm))
+
+summary(luq.seedling_counts.glmm)
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.seedling_counts.glmm, terms = ~treatment))
+luq.seedlings.predictions <- as.data.frame(ggpredict(luq.seedling_counts.glmm, terms = ~treatment))
+
+```
+
+Model visualization
+```{r}
+ggplot(luq.seedlings.predictions, aes(x = x, y = predicted))+
+  geom_errorbar(aes(ymax = conf.high,
+                ymin = conf.low),
+                width = 0) +
+  geom_point(size = 3) +
+  labs(x = "Treatment",
+       y = "Seedling count") +
+  theme_classic(base_size = 12)
+
+
+```
+
+Just trimming treatments
+```{r}
+# Filter for only trim treatments, create normalized variable
+luq.seeding_counts.trim <- luq.mortality_counts %>% 
+  filter(treatment == "Trim&clear" | treatment == "Trim+Debris",
+         year < 2009) %>% 
+  mutate(treatment = as.factor(treatment),
+         #year = as.numeric(year),
+         seedling_count.norm = seedling.count/max(luq.mortality_counts$seedling.count))
+  
+# Model 
+luq.seedling_counts.trim.glmm <- glmmTMB(seedling.count ~ treatment + (1|year) + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seeding_counts.trim)
+
+# Check residuals
+hist(residuals(luq.seedling_counts.trim.glmm))
+car::qqPlot(residuals(luq.seedling_counts.trim.glmm))
+
+summary(luq.seedling_counts.trim.glmm)
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.seedling_counts.trim.glmm, terms = ~treatment))
+luq.seedlings.trim.predictions <- as.data.frame(ggpredict(luq.seedling_counts.trim.glmm, terms = ~treatment))
+
+
+## Normalized model 
+luq.seedling_counts.trim.norm.glmm <- glmmTMB(seedling_count.norm ~ treatment + (1|year) + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seeding_counts.trim)
+
+# Check residuals
+hist(residuals(luq.seedling_counts.trim.norm.glmm))
+car::qqPlot(residuals(luq.seedling_counts.trim.norm.glmm))
+
+summary(luq.seedling_counts.trim.norm.glmm)
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.seedling_counts.trim.norm.glmm, terms = ~treatment))
+luq.seedlings.trim.predictions.norm <- as.data.frame(ggpredict(luq.seedling_counts.trim.norm.glmm, terms = ~treatment))
+
+```
+
+Model visualizations
+```{r}
+# Raw data
+ggplot(luq.seedlings.trim.predictions, aes(x = x, y = predicted)) +
+  geom_point(data = luq.seeding_counts.trim,
+             aes(x = treatment, y = seedling.count),
+             alpha = 0.6) +
+  geom_errorbar(aes(ymax = conf.high,
+                ymin = conf.low),
+                width = 0) +
+  geom_point(size = 3) +
+  #scale_x_discrete(labels = c("Litter removed", "Litter added")) +
+  scale_y_continuous(limits = c(0,700),
+                     expand = c(0,0)) +
+  labs(x = "Treatment",
+       y = "Seedling count") +
+  theme_classic(base_size = 12)
+
+# Normalized data
+ggplot(luq.seedlings.trim.predictions.norm, aes(x = x, y = predicted)) +
+  geom_point(data = luq.seeding_counts.trim,
+             aes(x = treatment, y = seedling_count.norm),
+             alpha = 0.6) +
+  geom_errorbar(aes(ymax = conf.high,
+                ymin = conf.low),
+                width = 0) +
+  geom_point(size = 3) +
+  scale_x_discrete(labels = c("Litter removed", "Litter added")) +
+  scale_y_continuous(limits = c(0,1.1),
+                     expand = c(0,0)) +
+  labs(x = "Treatment",
+       y = "Seedling count (normalized)") +
+  theme_classic(base_size = 12)
+
+```
+
+
+
+
+
+First canopy trimming experiment only
+```{r}
+# Summarize seedling volumes by year>block>plot for first canopy trimming experiment (2003-2013)
+luq.seedlings.summary <- luq.seedlings %>% 
+  filter(year < 2014) %>% 
+  group_by(year, block, plot) %>% 
+  summarize(seedling_ba.total = sum(seedling_ba),
+            seedling_count.total = sum(seedling_count),
+            seedling_dens = seedling_count.total/111) # 111 is the total area (m^2) in which seedling counts were done in each plot (?)
+
+# Summarize litter masses by year>block>plot for first canopy trimming experiment (2003-2013)
+luq.litter.summary <- luq.litter %>% 
+  filter(year < 2014,
+         year != 2002) %>% 
+  group_by(year, block, plot) %>% 
+  summarize(litter_mass.total = sum(litter_mass))
+
+# Merge seedling, litter, and plot treatment datasets
+luq.seedlings_litter <- merge(luq.seedlings.summary, luq.litter.summary)
+luq.seedlings_litter <- merge(luq.seedlings_litter, luq.cte_ttt)
+
+# Remove large outlier
+luq.seedlings_litter <- luq.seedlings_litter %>% 
+  mutate(plot = as.factor(plot),
+         year = as.factor(year)) %>% 
+  #filter(seedling_ba.total < 400) %>% 
+  drop_na()
+
+# Exploratory visualizations
+ggplot(luq.seedlings_litter, aes(x = litter_mass.total, y = seedling_count.total, color = treatment)) +
+  geom_point() +
+  geom_smooth(method = "lm") +
+  labs(y = "Annual seedling basal area (cm^2)",
+       x = "Annual litter mass (g)") +
+  #scale_y_continuous(limits = c(-1000,200000)) +
+  theme_classic()
+
+ttt_summary <- luq.seedlings_litter %>% 
+  group_by(treatment, year) %>% 
+  summarize(seedling_count.mean = mean(seedling_count.total),
+            seedling_count.se = sd(seedling_count.total)/sqrt(n()),
+            litter_mass.mean = mean(litter_mass.total),
+            litter_mass.se = sd(litter_mass.total)/sqrt(n()))
+
+ggplot(ttt_summary, aes(x = year, y = seedling_count.mean)) +
+  geom_line(aes(group = treatment,
+                color = treatment)) +
+  geom_errorbar(aes(ymax = seedling_count.mean + seedling_count.se,
+                    ymin = seedling_count.mean - seedling_count.se,
+                    color = treatment),
+                width = 0) +
+  geom_point(aes(color = treatment)) +
+  labs(x = "Year",
+       y = "Seedling counts (mean +/- SE") +
+  theme_classic()
+
+ggplot(ttt_summary, aes(x = year, y = litter_mass.mean)) +
+  geom_line(aes(group = treatment,
+                color = treatment)) +
+  geom_errorbar(aes(ymax = litter_mass.mean + litter_mass.se,
+                    ymin = litter_mass.mean - litter_mass.se,
+                    color = treatment),
+                width = 0) +
+  geom_point(aes(color = treatment)) +
+  labs(x = "Year",
+       y = "Litter mass (mean +/- SE") +
+  theme_classic()
+
+```
+
+```{r}
+## Mixed effects model with both canopy clearing treatments
+luq.trim <- luq.seedlings_litter %>% 
+  filter(treatment == "Trim+Debris" | treatment == "Trim&clear")
+
+luq.trim.glmm <- glmmTMB(log(seedling_count.total) ~ log(litter_mass.total)*treatment + (1|block),
+                                          family = "gaussian",
+                                          data = luq.trim)
+
+summary(luq.trim.glmm)
+
+# Check residuals
+hist(residuals(luq.trim.glmm))
+car::qqPlot(residuals(luq.trim.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.trim.glmm, terms = ~log(litter_mass.total)*treatment))
+luq.seedlings_litter.predictions <- as.data.frame(ggpredict(luq.trim.glmm, terms = ~log(litter_mass.total)*treatment))
+```
+
+Model visualization
+```{r}
+luq.seedlings_litter.norm %>%
+  ggplot()+
+  geom_ribbon(data = luq.seedlings_litter.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = luq.seedlings_litter.predictions, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = litter.norm, y = seedlings.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized litter biomass",
+       y = "Normalized seedling volume") +
+  theme_classic(base_size = 12)
+
+
+```
+
+Mixed effects models of seedling basal area ~ litter mass
+```{r}
+## Raw data
+luq.cte.glmm.all_ttt <- glmmTMB(seedling_ba.total ~ litter_mass.total + treatment + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seedlings_litter)
+
+# Check residuals
+hist(residuals(luq.cte.glmm.all_ttt))
+car::qqPlot(residuals(luq.cte.glmm.all_ttt))
+
+summary(luq.cte.glmm.all_ttt)
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.cte.glmm.all_ttt, terms = ~litter_mass.total + treatment))
+luq.cte.predictions.all_ttt <- as.data.frame(ggpredict(luq.cte.glmm.all_ttt, terms = ~litter_mass.total + treatment))
+
+## Log-transformed data, basal area
+
+luq.all_ttt.glmm <- glmmTMB(log(seedling_count.total) ~ log(litter_mass.total) + treatment + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seedlings_litter)
+
+summary(luq.all_ttt.glmm)
+
+# Check residuals
+hist(residuals(luq.all_ttt.glmm))
+car::qqPlot(residuals(luq.all_ttt.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.all_ttt.glmm, terms = ~log(litter_mass.total) + treatment))
+luq.cte.predictions.all_ttt.log <- as.data.frame(ggpredict(luq.all_ttt.glmm, terms = ~litter_mass.total))
+
+## Log-transformed data, seedling density
+luq.cte.glmm.all_ttt.log.dens <- glmmTMB(log(seedling_dens) ~ log(litter_mass.total) + treatment + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seedlings_litter)
+
+summary(luq.cte.glmm.all_ttt.log.dens)
+
+# Check residuals
+hist(residuals(luq.cte.glmm.all_ttt.log.dens))
+car::qqPlot(residuals(luq.cte.glmm.all_ttt.log.dens))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.cte.glmm.all_ttt.log.dens, terms = ~litter_mass.total))
+luq.cte.predictions.all_ttt.log.dens <- as.data.frame(ggpredict(luq.cte.glmm.all_ttt.log.dens, terms = ~litter_mass.total))
+```
+
+Model visualization
+```{r}
+luq.seedlings_litter %>%
+  ggplot()+
+  geom_ribbon(data = luq.cte.predictions.all_ttt, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high, group = group, fill = group), 
+              alpha =0.5)+
+  geom_line(data = luq.cte.predictions.all_ttt, 
+            aes(x = x, y = predicted, group = group, color = group))+
+  geom_point(aes(x = litter_mass.total, y = seedling_vol.total, color = treatment),
+             alpha = 0.6,
+             size = 2) +
+  labs(x = "Litter biomass (g)",
+       y = "Seedling volume (cm^2)") +
+  scale_x_continuous(limits = c(0,3000)) +
+  theme_classic(base_size = 12)
+
+# Log-transformed, basal area
+luq.seedlings_litter %>%
+  ggplot()+
+  geom_ribbon(data = luq.cte.predictions.all_ttt.log, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5)+
+  geom_line(data = luq.cte.predictions.all_ttt.log, 
+            aes(x = x, y = predicted, group = group))+
+  geom_point(aes(x = litter_mass.total, y = seedling_ba.total),
+             alpha = 0.6,
+             size = 2) +
+  labs(x = "Log litter biomass (g)",
+       y = "Log seedling basal area (cm^2)") +
+  #scale_x_continuous(limits = c(0,3000)) +
+  theme_classic(base_size = 12)
+
+# Seedling density
+luq.seedlings_litter %>%
+  ggplot()+
+  geom_ribbon(data = luq.cte.predictions.all_ttt.log.dens, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5)+
+  geom_line(data = luq.cte.predictions.all_ttt.log.dens, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = litter_mass.total, y = seedling_dens),
+             alpha = 0.6,
+             size = 2) +
+  labs(x = "Log litter biomass (g)",
+       y = "Log seedling density (ind/m^2)") +
+  #scale_x_continuous(limits = c(0,3000)) +
+  theme_classic(base_size = 12)
+
+```
+
+Normalized data
+```{r}
+# Scale variables to maximum values
+luq.seedlings_litter.norm <- luq.seedlings_litter %>%
+  drop_na() %>% 
+  mutate(seedlings.norm = seedling_vol.total/max(seedling_vol.total),
+         litter.norm = litter_mass.total/max(litter_mass.total))
+
+# Mixed effects model of seedling volume ~ litter mass, normalized
+luq.cte.glmm.norm.all_ttt <- glmmTMB(seedlings.norm ~ litter.norm*treatment + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seedlings_litter.norm)
+
+summary(luq.cte.glmm.norm.all_ttt)
+
+# Check residuals
+hist(residuals(luq.cte.glmm.norm.all_ttt))
+car::qqPlot(residuals(luq.cte.glmm.norm.all_ttt))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.cte.glmm.norm, terms = ~litter.norm))
+luq.cte.predictions.norm <- as.data.frame(ggpredict(luq.cte.glmm.norm, terms = ~litter.norm))
+```
+
+Normalized model visualization
+```{r}
+luq.seedlings_litter.norm %>%
+  ggplot()+
+  geom_ribbon(data = luq.cte.predictions.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = luq.cte.predictions.norm, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = litter.norm, y = seedlings.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized litter biomass",
+       y = "Normalized seedling volume") +
+  theme_classic(base_size = 12)
+```
+
+Mixed effects models of seedling volume ~ litter mass, without 'No trim + debris' TTT
+```{r}
+## Raw data
+# Remove "Trim + Debris" treatment and scale variables to max values
+luq.seedlings_litter.norm <- luq.seedlings_litter %>% 
+  filter(treatment != "NoTrim+Debris") %>% 
+  drop_na() %>% 
+  mutate(seedlings.norm = seedling_vol.total/max(seedling_vol.total),
+         litter.norm = litter_mass.total/max(litter_mass.total))
+
+## Mixed effects model of seedling volume ~ litter mass, normalized
+luq.cte.glmm <- glmmTMB(seedling_vol.total ~ litter_mass.total + (1|treatment) + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seedlings_litter.norm)
+
+# Check residuals
+hist(residuals(luq.cte.glmm))
+car::qqPlot(residuals(luq.cte.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.cte.glmm, terms = ~litter_mass.total*treatment))
+luq.cte.predictions <- as.data.frame(ggpredict(luq.cte.glmm, terms = ~litter_mass.total*treatment))
+```
+
+Model visualization
+```{r}
+luq.seedlings_litter.norm %>%
+  ggplot()+
+  geom_ribbon(data = luq.cte.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high, group = group, fill = group), 
+              alpha =0.5)+
+  geom_line(data = luq.cte.predictions, 
+            aes(x = x, y = predicted, group = group, color = group))+
+  geom_point(aes(x = litter_mass.total, y = seedling_vol.total, color = treatment),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Litter biomass",
+       y = "Seedling volume") +
+  theme_classic(base_size = 12)
+
+```
+
+
+```{r}
+## Normalized data
+# Mixed effects model of seedling volume ~ litter mass, normalized
+luq.cte.glmm.norm <- glmmTMB(seedlings.norm ~ litter.norm + (1|block),
+                                          family = "gaussian", # Need to figure out which family to use
+                                          data = luq.seedlings_litter.norm)
+
+# Check residuals
+hist(residuals(luq.cte.glmm.norm))
+car::qqPlot(residuals(luq.cte.glmm.norm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.cte.glmm.norm, terms = ~litter.norm))
+luq.cte.predictions.norm <- as.data.frame(ggpredict(luq.cte.glmm.norm, terms = ~litter.norm))
+```
+
+Normalized model visualization
+```{r}
+luq.seedlings_litter.norm %>%
+  ggplot()+
+  geom_ribbon(data = luq.cte.predictions.norm, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = luq.cte.predictions.norm, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = litter.norm, y = seedlings.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized litter biomass",
+       y = "Normalized seedling volume") +
+  theme_classic(base_size = 12)
+```
+
+
+
+Mixed effects models of seedling volume ~ litter mass, by treatment
+```{r}
+# Remove "Trim + Debris" treatment and scale variables to max values
+luq.seedlings_litter.norm <- luq.seedlings_litter %>% 
+  filter(treatment != "Trim+Debris") %>% 
+  drop_na() %>% 
+  mutate(seedlings.norm = seedling_vol.total/max(seedling_vol.total),
+         litter.norm = litter_mass.total/max(litter_mass.total))
+
+## Mixed effects model of 'Control' ttt
+luq.cte_control <- luq.seedlings_litter.norm %>% 
+  filter(treatment == "Control")
+
+luq.cte_control.glmm <- glmmTMB(seedlings.norm ~ litter.norm + (1|block),
+                                          family = beta_family(link = "logit"), # Need to figure out which family to use
+                                          data = luq.cte_control)
+
+# Check residuals
+hist(residuals(luq.cte_control.glmm))
+car::qqPlot(residuals(luq.cte_control.glmm))
+
+
+## Mixed effects model of 'Trim + Clear' ttt
+luq.trim_clear <- luq.seedlings_litter.norm %>% 
+  filter(treatment == "Trim&clear")
+
+luq.trim_clear.glmm <- glmmTMB(seedlings.norm ~ litter.norm + (1|block),
+                                          family = gaussian(link = "identity"),
+                                          data = luq.trim_clear)
+
+# Check residuals
+hist(residuals(luq.trim_clear.glmm))
+car::qqPlot(residuals(luq.trim_clear.glmm))
+
+## Mixed effects model of 'Trim + Clear' ttt
+luq.NoTrim_debris <- luq.seedlings_litter.norm %>% 
+  filter(treatment == "NoTrim+Debris")
+
+luq.NoTrim_debris.glmm <- glmmTMB(seedlings.norm ~ litter.norm + (1|block),
+                                          family = gaussian(link = "identity"),
+                                          data = luq.NoTrim_debris)
+
+# Check residuals
+hist(residuals(luq.NoTrim_debris.glmm))
+car::qqPlot(residuals(luq.NoTrim_debris.glmm))
+
+
+```
+
+```{r}
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.seedlings_litter.norm.glmm, terms = ~litter.norm))
+luq.seedlings_litter.predictions <- as.data.frame(ggpredict(luq.seedlings_litter.norm.glmm, terms = ~litter.norm))
+```
+
+Model visualization
+```{r}
+luq.seedlings_litter.norm %>%
+  ggplot()+
+  geom_ribbon(data = luq.seedlings_litter.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = luq.seedlings_litter.predictions, 
+            aes(x = x, y = predicted))+
+  geom_point(aes(x = litter.norm, y = seedlings.norm),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "Normalized litter biomass",
+       y = "Normalized seedling volume") +
+  theme_classic(base_size = 12)
+```
+
+# Analyses across systems
+## Effect sizes
+```{r}
+
+library(glmmTMB)
+library(broom.mixed)
+
+# Extract effect sizes from each mixed model
+knz.effects <- broom.mixed::tidy(knz.norm.glmm, effects = "fixed", conf.int = TRUE)
+  knz.effects[knz.effects$term == "predictor", ]
+  
+vcr.effects <- broom.mixed::tidy(juv_oyst.norm.glmm, effects = "fixed", conf.int = TRUE)
+  vcr.effects[vcr.effects$term == "predictor", ]
+
+mcr.effects <- broom.mixed::tidy(live_dead.norm.glmm, effects = "fixed", conf.int = TRUE)
+  mcr.effects[mcr.effects$term == "predictor", ]
+  
+bnz.effects <- broom.mixed::tidy(bnz_seeds.norm.glmm, effects = "fixed", conf.int = TRUE)
+  bnz.effects[bnz.effects$term == "predictor", ]
+  
+sbc.effects <- broom.mixed::tidy(sbc.canopy_dmh.glmm.norm, effects = "fixed", conf.int = TRUE)
+  
+luq.effects <- broom.mixed::tidy(luq.seedling_counts.trim.norm.glmm, effects = "fixed", conf.int = TRUE)
+
+
+# Assemble effect sizes from each ecosystem type
+lter.effects <- rbind(knz.effects, vcr.effects, mcr.effects, bnz.effects, sbc.effects, luq.effects)
+lter.effects <- lter.effects %>% 
+  filter(term != "(Intercept)") %>% 
+  mutate(ecosystem = c("Tallgrass prairie", "Oyster reef", "Coral reef", "Boreal forest", "Kelp forest", "Tropical forest"),
+         significance = ifelse(conf.low > 0 | conf.high < 0, "Significant", "Not Significant"))
+```
+
+```{r}
+# Effect size plot
+ggplot(lter.effects, aes(x = estimate, y = reorder(ecosystem, -estimate))) + #, color = significance)) +
+  geom_point(size = 2) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high),
+                 height = 0,
+                 linewidth = 1) +  
+  geom_vline(xintercept = 0, linetype = "dashed") +
+  labs(x = "Effect of material legacy on demographic metric (± 95% CI)",
+    y = "Ecosystem type") +
+  # scale_color_manual(name = "",
+  #                    labels = c("Significant", "Non-significant"),
+  #                    values = c("black", "grey")) +
+  theme_minimal()
+  
+```
+
