@@ -1190,11 +1190,12 @@ Mixed effects model, seedling count ~ ttt
 ```{r}
 # Remove first year of experiment (pre-manipulation)
 luq.seeding_counts <- luq.mortality_counts %>% 
-  filter(year != 2004) %>% 
+  filter(year %in% c(2005, 2006, 2007, 2008),
+         treatment == "Control" | treatment == "Trim+Debris") %>% 
   mutate(year = as.factor(year))
   
 # Model 
-luq.seedling_counts.glmm <- glmmTMB(seedling.count ~ treatment*year + (1|block),
+luq.seedling_counts.glmm <- glmmTMB(seedling.count ~ treatment + year + (1|block),
                                           family = "gaussian", 
                                           data = luq.seeding_counts)
 
@@ -1228,8 +1229,8 @@ Just trimming treatments
 ```{r}
 # Filter for only trim treatments, create normalized variable
 luq.seeding_counts.trim <- luq.mortality_counts %>% 
-  filter(treatment == "Trim&clear" | treatment == "Trim+Debris",
-         year < 2009) %>% 
+  filter(#treatment == "Control" | treatment == "Trim+Debris",
+         year %in% 2009) %>% 
   mutate(treatment = as.factor(treatment),
          #year = as.numeric(year),
          seedling_count.norm = seedling.count/max(luq.mortality_counts$seedling.count))
