@@ -1,0 +1,178 @@
+---
+title: "Advanced textbook module_LTER synthesis"
+author: "Kai L. Kopecky"
+date: "2025-03-06"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+The first step is to read in, explore, and clean datasets from each LTER site: Virginia Coastal Reserve (oyster reef), Luquillo (tropical montane forest)
+
+#### Virginia Coastal Reserve (VCR)
+```{r}
+# Read in raw datafile and save a version to be able to reference at any point
+vcr.raw <- read_csv("Data/Virginia Coastal/Oyster_Count_Data_2022_03_10.csv")
+
+# Now we'll clean this dataset to narrow it down to only what we're interested in. We'll filter for just live and dead oysters (including adults and juveniles), create new columns for the year and season (this will be important later), then we'll remove any unneeded columns. 
+vcr <- read_csv("Data/Virginia Coastal/Oyster_Count_Data_2022_03_10.csv") %>% 
+  clean_names() %>% 
+  mutate(year = substr(date, nchar(date) - 1, nchar(date)),
+         year = paste0("20", year),
+         date = mdy(date), # Convert the date column to Date format
+         month = month(date), # Extract the month
+         season = case_when( # Assign seasons based on month
+          month %in% c(12, 1, 2) ~ "Winter",
+          month %in% c(3, 4, 5) ~ "Spring",
+          month %in% c(6, 7, 8) ~ "Summer",
+          month %in% c(9, 10, 11) ~ "Fall",
+          TRUE ~ NA_character_)) %>%
+  filter(species == c("Box Adult Oyster", "Box Spat Oyster", "Spat Oyster")) 
+
+# The relationship we're interested in is how the density of dead oysters influences the density of juvenile oysters. Oyster measurements for this dataset are already in density units (ind/m^2), so we don't need to convert them. But we will wrangle our dataframe a bit to make it easier to analyze.  
+
+# Create a wide format dataframe where juvenile oyster densities and dead oyster densities are in their own columns
+vcr <- vcr %>% 
+  mutate(species = case_when(species == "Spat Oyster" ~ "Spat",
+                             TRUE ~ "Dead")) %>%
+  select(site, species, species_count, year, month, season) %>% 
+  #filter(species != "Adult") %>% 
+  # group_by(site, species, year, season) %>% 
+  # summarize(mean_density = mean(species_count)) %>% 
+  pivot_wider(names_from = species, values_from = species_count) %>% 
+  drop_na()
+
+# Check relationship between dead oysters and juveniles separated by season
+ggplot(vcr, aes(x = Dead, y = Spat)) +
+  geom_point(alpha = 0.5) +
+  geom_smooth(method = "lm") +
+  #scale_x_continuous(expand = c(0.01,0)) +
+  #scale_y_continuous(expand = c(0.01,0)) +
+  labs(x = "Dead oyster density",
+       y = "Juvenile oyster density") +
+  facet_wrap(~season) +
+  theme_classic()
+
+# All seasons but summer have a positive relationship. A conversation with a VCR researcher provides the context that juvenile oysters grow rapidly throughout the year and become adults by summer. Therefore, Summer does not provide a reliable estimate of this relationship and should be removed from the analysis. 
+
+vcr <- vcr %>% 
+  filter(season != "Summer")
+```
+
+Now, we'll build a mixed effects model of juvenile oyster density as a function of dead oyster density. First, let's summarize our dataset by year and site (i.e., remove season), then re-scale our dead and juvenile oyster variables by their maximum values (we'll do this with our other datasets as well so we can more easily compare across ecosystems).
+```{r}
+
+vcr <- vcr %>% 
+  group_by(year, site) %>% 
+  summarize(mean.juv_density = mean(Spat),
+            mean.dead_density = mean(Dead),
+            norm.juv_density = agg.juv_density/max(agg.juv_density),
+            norm.dead_density = agg.dead_density/max(agg.dead_density))
+
+
+
+```
+
+#### Luquillo
+
+```{r}
+# Load and clean seedling data
+luq.seedlings <- read_csv("Data/Luquillo/CTESeedlingMeasurementData2003-20212.csv") %>% 
+  clean_names() %>% 
+  mutate(start_date = as.character(start_date),
+         year = as.numeric(substr(start_date, 1, 4))) # Creates a column for year
+
+# Load and clean litterfall data          
+luq.litter <- read_csv("Data/Luquillo/CTE-Litterfall-data.csv") %>% 
+  clean_names() %>% 
+  select(-c(8:10)) %>% 
+  mutate(date = as.character(date),
+         year = as.numeric(substr(date, 1, 4)), # Creates a column for year
+         litter_mass = leaves_in_g + wood_in_g + misc_in_g + fruits_seeds_flower_g) %>% # Create a combined variable for all litterfall
+  select(c(2,3,8,9))
+
+# Read in and clean datafile with metadata for which plots reccieved which treatments
+luq.cte_ttt <- read_csv("Data/Luquillo/CTE_Treatments_0.csv") %>% 
+  clean_names() %>% 
+  select(-c(latitude, longitude, subplot)) %>% 
+  distinct()
+  
+```
+
+```{r}
+# Here, we will explore how the amount of litterfall influences rates of seedling mortality. First, we need to modify our seedling dataframe to include columns for mortality and survival
+
+# Seedling mortality
+luq.seedlings_mortality <- luq.seedlings %>% 
+  filter(#year %in% c(2004, 2005, 2006, 2007, 2008),
+         #year == 2004 | year == 2005,
+         dead_alive_notfound != "NF") %>% 
+  mutate(mortality = if_else(dead_alive_notfound == "D", 1, 0),
+         survival = if_else(dead_alive_notfound == "A", 1, 0),
+         year = as.numeric(year))
+
+# Now, we'll merge the seedling mortality dataframe with the metadata for the experimental treatments
+luq.seedlings_mortality <- merge(luq.seedlings_mortality, luq.cte_ttt)
+
+# We'll clean it up a bit more
+luq.seedlings_mortality <- luq.seedlings_mortality %>% 
+  relocate(treatment, .before = block) %>% 
+  #filter(height != "NA") %>% 
+  select(-c(lessthan10cm, comments, new))
+
+# Make a summary dataframe for total seedling mortality within the various treatments
+luq.mortality_counts <- luq.seedlings_mortality %>%   
+  group_by(treatment, year, block, plot) %>% 
+  summarize(mortality.count = sum(mortality),
+            seedling.count = sum(survival))
+
+# Now, we'll merge the litterfall dataset with the seedling dataset, then filter for just the two treatments where the canopy was cleared
+luq.seeds_litter <- merge(luq.seedlings_mortality, luq.litter)
+luq.seeds_litter <- luq.seeds_litter %>% 
+  
+  filter(treatment %in% c("Trim+Debris", "Trim&clear"))
+
+```
+
+Mixed effects model, seedling count ~ ttt
+```{r}
+# Remove first year of experiment (pre-manipulation)
+luq.seeding_counts <- luq.mortality_counts %>% 
+  filter(year %in% c(2005, 2006, 2007, 2008),
+         treatment == "Trim&clear" | treatment == "Trim+Debris") %>% 
+  mutate(year = as.factor(year))
+  
+# Model 
+luq.seedling_counts.glmm <- glmmTMB(seedling.count ~ treatment + year + (1|block),
+                                          family = "gaussian", 
+                                          data = luq.seeding_counts)
+
+# Check residuals
+hist(residuals(luq.seedling_counts.glmm))
+car::qqPlot(residuals(luq.seedling_counts.glmm))
+
+summary(luq.seedling_counts.glmm)
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(luq.seedling_counts.glmm, terms = ~treatment))
+luq.seedlings.predictions <- as.data.frame(ggpredict(luq.seedling_counts.glmm, terms = ~treatment))
+
+```
+
+Model visualization
+```{r}
+ggplot(luq.seedlings.predictions, aes(x = x, y = predicted))+
+  geom_errorbar(aes(ymax = conf.high,
+                ymin = conf.low),
+                width = 0) +
+  geom_point(size = 3) +
+  labs(x = "Treatment",
+       y = "Seedling count") +
+  theme_classic(base_size = 12)
+
+
+```

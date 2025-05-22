@@ -39,8 +39,7 @@ library(broom.mixed)
 
 knz <- read_csv("Data/Konza Prairie/PAB011.csv") %>% 
   clean_names() %>% 
-  filter(pryrdead >=0,
-         lvgrass != "NA")
+  mutate(watershed = as.factor(watershed))
 
 hist(knz$lvgrass)
 hist(log(knz$lvgrass))
@@ -55,52 +54,193 @@ ggplot(knz, aes(x = pryrdead, y = lvgrass, color = watershed)) +
               aes(color = watershed)) +
   #scale_x_continuous(expand = c(0.01,1)) +
  # scale_y_continuous(expand = c(0.01,1)) +
-  labs(x = "Lagged dead biomass",
-       y = "Current year biomass") +
-  theme_classic()
-
-# Forbs ~ previous year
-ggplot(knz, aes(x = pryrdead, y = forbs, color = watershed)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm", 
-              aes(color = watershed)) +
-  labs(x = "Lagged dead biomass",
-       y = "Current year forb biomass") +
-  theme_classic()
-
-ggplot(knz, aes(x = pryrdead, y = woody, color = watershed)) +
-  geom_point(alpha = 0.5) +
-  geom_smooth(method = "lm", 
-              aes(color = watershed)) +
-  labs(x = "Lagged dead biomass",
-       y = "Current year forb biomass") +
+  labs(x = "Previous year dead biomass (g/m^2)",
+       y = "Current year live biomass (g/m^2)") +
   theme_classic()
 
 ```
 
+```{r}
+# Remove watersheds with annual and 20 year burns; remove all observations from burn years within 4-year watershed; remove observations with > 100 g/m^2 of woody biomass
+
+knz.four_year <- knz %>% 
+  filter(watershed == "004b",
+         # pryrdead > 0,
+         # lvgrass > 0,
+         woody < 100) %>% 
+  select(recyear, soiltype, transect, plotnum, lvgrass, pryrdead) %>% 
+  mutate(recyear = as.numeric(recyear),
+         soiltype = as.factor(soiltype)) %>% 
+  rename(year = recyear)
+
+hist(knz.four_year$lvgrass)
+hist(log(knz.four_year$lvgrass))
+
+hist(knz.four_year$pryrdead)
+hist(log(knz.four_year$pryrdead))
+
+```
+
+Burn year data:
+```{r}
+# Load burn year data and filter for only four-year watershed
+burns.four_year <- read_csv("Data/Konza Prairie/KFH011.csv") %>% 
+  clean_names() %>% 
+  filter(watershed == "4B",
+         code != "004A") %>% 
+  select(year) %>% 
+  distinct(year, .keep_all = TRUE) %>% 
+  mutate(burn_year = "yes")
+
+# Create complete set of burned and unburned years
+all_years <- tibble(year = seq(1991, max(knz.four_year$year)))
+
+# Full join with all years and replace NAs with "no"
+burn_data_filled <- all_years %>%
+  left_join(burns.four_year, by = "year") %>%
+  mutate(burn_year = replace_na(burn_year, "no"))
+
+```
+
+Merge burn years and biomass data
+```{r}
+# Merge burn data with biomass data
+knz.four_year <- knz.four_year %>% 
+  left_join(burn_data_filled, by = "year") 
+
+knz.four_year <- knz.four_year %>% 
+  mutate(burn_year = as.factor(burn_year))
+
+# Manually specify the last known burn year before biomass data starts
+#last_known_burn <- 1991  
+
+# knz.four_year <- knz.four_year %>% 
+#   arrange(year) %>%
+#   mutate(last_burn = ifelse(burn_year == "yes", year, NA)) %>%
+#   fill(last_burn, .direction = "down") %>%  # Fill last known burn year down
+#   mutate(last_burn = ifelse(is.na(last_burn), last_known_burn, last_burn),  # Replace NAs with 1991
+#          years_since_burn = year - last_burn) %>%  # Calculate years since last burn
+#   filter(lvgrass > 0,
+#          pryrdead > 0)
+
+# Create numerical variable for years since burn
+knz.four_year <- knz.four_year %>% 
+  arrange(year) %>%
+  mutate(last_burn = ifelse(burn_year == "yes", year, NA)) %>%
+  fill(last_burn, .direction = "down") %>%  
+  mutate(years_since_burn = year - last_burn,
+         years_since_burn = as.factor(years_since_burn)) %>% 
+  filter(lvgrass > 0,
+         pryrdead > 0) %>% 
+  drop_na()
+```
+
+Statistical analysis (GLMM)
+```{r}
+# GLMM of live biomass ~ previous year's dead biomass
+knz.four_year.glmm <- glmmTMB(lvgrass ~ pryrdead*years_since_burn + (1|soiltype) + (1|year) + (1|transect),
+                              family = "gaussian",
+                    data = knz.four_year)
+summary(knz.four_year.glmm)
+
+predictions.knz.four_year <- ggpredict(knz.four_year.glmm, terms = ~ pryrdead*years_since_burn)
+plot(predictions.knz.four_year)
+predictions.knz.four_year <- as.data.frame(predictions.knz.four_year)
+
+# Model visualization
+ggplot()+
+  geom_point(data = knz.four_year, 
+             aes(x = pryrdead, 
+                 y = lvgrass,
+                 color = years_since_burn),
+             alpha = 0.6,
+             size = 2) +
+  geom_ribbon(data = predictions.knz.four_year, 
+              aes(x = x, 
+                  y = predicted, 
+                  ymin =conf.low, 
+                  ymax = conf.high,
+                  group = group,
+                  fill = group), 
+              #fill = "#3B4F8E",
+              alpha =0.5)+
+  geom_line(data = predictions.knz.four_year, 
+            aes(x = x , 
+                y = predicted, 
+                group = group,
+                color = group)) +
+  scale_x_continuous(expand = c(0.01,1)) +
+  scale_y_continuous(#limits = c(0,160), 
+                     expand = c(0.01,1)) +
+  labs(x = Previous~year~dead~biomass~(g/m^2),
+       y = Current~year~live~biomass~(g/m^2)) +
+  #facet_wrap(~years_since_burn) +
+  theme_classic()
+
+# Model visualization
+ggplot()+
+  geom_point(data = knz.four_year, 
+             aes(x = pryrdead, 
+                 y = lvgrass),
+             alpha = 0.6,
+             size = 2) +
+  geom_ribbon(data = predictions.knz.four_year, 
+              aes(x = x, 
+                  y = predicted, 
+                  ymin =conf.low, 
+                  ymax = conf.high,
+                  group = group), 
+              #fill = "#3B4F8E",
+              alpha =0.5)+
+  geom_line(data = predictions.knz.four_year, 
+            aes(x = x , 
+                y = predicted, 
+                group = group)) +
+  scale_x_continuous(expand = c(0.01,1)) +
+  scale_y_continuous(#limits = c(0,160), 
+                     expand = c(0.01,1)) +
+  labs(x = Previous~year~dead~biomass~(g/m^2),
+       y = Current~year~live~biomass~(g/m^2)) +
+  #facet_wrap(~years_since_burn) +
+  theme_classic()
+
+```
+
+
 Mixed effects models
 ```{r}
 # glmm of total live biomass ~ previous year dead biomass
-knz.glmm <- glmmTMB(lvgrass ~ pryrdead + (1|transect),
+
+knz.glmm <- glmmTMB(lvgrass ~ pryrdead*watershed + (1|transect),
                     data = knz)
 summary(knz.glmm)
 
-predictions.knz <- ggpredict(knz.glmm, terms = ~ pryrdead + (1|transect))
+predictions.knz <- ggpredict(knz.glmm, terms = ~ pryrdead*watershed)
 plot(predictions.knz)
 predictions.knz <- as.data.frame(predictions.knz)
 
 # Model visualization
 ggplot()+
   geom_point(data = knz, 
-             aes(x = pryrdead, y = lvgrass),
+             aes(x = pryrdead, 
+                 y = lvgrass, 
+                 color = watershed),
              alpha = 0.6,
              size = 2) +
   geom_ribbon(data = predictions.knz, 
-              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
-              fill = "#3B4F8E",
+              aes(x = x, 
+                  y = predicted, 
+                  ymin =conf.low, 
+                  ymax = conf.high,
+                  group = group,
+                  fill = group), 
+              #fill = "#3B4F8E",
               alpha =0.5)+
   geom_line(data = predictions.knz, 
-            aes(x = x , y = predicted, group = group)) +
+            aes(x = x , 
+                y = predicted, 
+                group = group,
+                color = group)) +
   scale_x_continuous(expand = c(0.01,1)) +
   scale_y_continuous(#limits = c(0,160), 
                      expand = c(0.01,1)) +
@@ -108,7 +248,7 @@ ggplot()+
        y = "Current year live biomass (g/m^2)") +
   theme_classic()
 
-# glmm of total live biomass ~ previous year dead biomass*watershed
+# glmm of live grass biomass ~ previous year dead biomass*watershed
 knz.glmm <- glmmTMB(lvgrass ~ pryrdead*watershed + (1|transect),
                     data = knz)
 summary(knz.glmm)
@@ -256,7 +396,7 @@ ggplot()+
 
 # Use only reference sites; or, also use restored sites that are >= 6 years since construction
 
-# Plot juv denisty against day of year 
+# Plot juv density against day of year 
 
 # lump seasons; conservative approach could be to limit analysis to summer-fall
 
@@ -266,8 +406,7 @@ vcr.raw <- read_csv("Data/Virginia Coastal/Oyster_Count_Data_2022_03_10.csv")
 
 # Filter original data for just live and dead oysters
 vcr <- read_csv("Data/Virginia Coastal/Oyster_Count_Data_2022_03_10.csv") %>% 
-  clean_names() %>% 
-  select(site, sample, date, species, species_count) %>% 
+  clean_names() %>%
   filter(species == c("Adult Oyster", "Box Adult Oyster", "Box Spat Oyster", "Spat Oyster")) %>% 
   mutate(year = substr(date, nchar(date) - 1, nchar(date)),
          year = paste0("20", year),
@@ -278,7 +417,8 @@ vcr <- read_csv("Data/Virginia Coastal/Oyster_Count_Data_2022_03_10.csv") %>%
           month %in% c(3, 4, 5) ~ "Spring",
           month %in% c(6, 7, 8) ~ "Summer",
           month %in% c(9, 10, 11) ~ "Fall",
-          TRUE ~ NA_character_))
+          TRUE ~ NA_character_)) %>% 
+  select(year, season, site, sample, species, species_count)
 
 
 # Create summary dataframe for juvenile oyster densities 
@@ -730,10 +870,15 @@ Questions:
 
 Notes from meeting with Kyle:
 Parse out the algae and invert species further
-- Look at relationships between dead holdfasts and macrocystis, holdfasts and canopy-forming (macrocystis, cystoseira, egregia, and sargassum), dead holdfasts and  understory algal species (everything else); compare this with all algae grouped together
+- Look at relationships between dead holdfasts and macrocystis, holdfasts and canopy-forming (macrocystis, cystoseira, egregia, and sargassum), dead holdfasts and understory algal species (everything else); compare this with all algae grouped together
 - For inverts, parse out mobile vs sessile, look at relationship between holdfasts and sessile
 
 - Maybe remove quads with 0% cover of dead holdfasts
+
+Meeting with Bob and Kyle:
+- Try maintaining quadrats as replicates (nested within transect and site), no time lag
+- Check LTE data for juvenile kelp ~ dead holdfasts (percent cover? presence/absence?)
+- Look into why dead holdfasts start only in 2008
 
 ```{r}
 
@@ -834,6 +979,22 @@ car::qqPlot(residuals(sbc.macro_dmh.glmm))
 plot(ggpredict(sbc.macro_dmh.glmm, terms = ~dmh_cover.mean))
 sbc.macro_dmh.predictions <- as.data.frame(ggpredict(sbc.macro_dmh.glmm, terms = ~dmh_cover.mean))
 
+sbc.macro_dmh.summary %>%
+  ggplot()+
+  geom_ribbon(data = sbc.macro_dmh.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = sbc.macro_dmh.predictions, 
+            aes(x = x, y = predicted))+
+  geom_jitter(aes(x = dmh_cover.mean, y = macro_cover.mean),
+             alpha = 0.6,
+             size = 2)+
+  #scale_y_continuous(limits = c(0,14)) +
+  labs(x = "% cover of dead holdfasts",
+       y = "% cover of live Macrocystis") +
+  theme_classic(base_size = 12)
+
 ```
 
 ```{r}
@@ -870,7 +1031,7 @@ sbc.macro_dmh.summary %>%
             aes(x = x, y = predicted))+
   geom_jitter(aes(x = dmh_cover.norm, y = macro_cover.norm),
              alpha = 0.6,
-             size = 2)+
+             size = 2) +
   labs(x = "Normalized % cover of dead holdfasts",
        y = "Normalized % cover of live Macrocystis") +
   theme_classic(base_size = 12)
@@ -904,7 +1065,43 @@ sbc.canopy_dmh.summary <- sbc.canopy_dmh %>%
 ```
 
 ```{r}
-# glmm of macro cover ~ dead holdfast cover
+# glmm of canopy cover ~ dead holdfast cover
+sbc.canopy_dmh.glmm <- glmmTMB(canopy_cover.mean ~ dmh_cover.mean + (1|site) + (1|year),
+                              family = gaussian(link = "identity"),
+                              data = sbc.canopy_dmh.summary)
+summary(sbc.canopy_dmh.glmm)
+
+# Check residuals
+hist(residuals(sbc.canopy_dmh.glmm))
+car::qqPlot(residuals(sbc.canopy_dmh.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(sbc.canopy_dmh.glmm, terms = ~dmh_cover.mean))
+sbc.canopy_dmh.predictions <- as.data.frame(ggpredict(sbc.canopy_dmh.glmm, terms = ~dmh_cover.mean))
+
+```
+
+Visualization of normalized model
+```{r}
+sbc.canopy_dmh.summary %>%
+  ggplot()+
+  geom_ribbon(data = sbc.canopy_dmh.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = sbc.canopy_dmh.predictions, 
+            aes(x = x, y = predicted))+
+  geom_jitter(aes(x = dmh_cover.mean, y = canopy_cover.mean),
+             alpha = 0.6,
+             size = 2) +
+  scale_y_continuous(limits = c(0,6)) +
+  labs(x = "% cover of dead holdfasts",
+       y = "% cover of canopy-forming spp.") +
+  theme_classic(base_size = 12)
+```
+
+```{r}
+# glmm of canopy cover ~ dead holdfast cover
 sbc.canopy_dmh.glmm.norm <- glmmTMB(canopy_cover.norm ~ dmh_cover.norm + (1|site) + (1|year),
                               family = gaussian(link = "identity"),
                               data = sbc.canopy_dmh.summary)
@@ -971,6 +1168,41 @@ sbc.under_dmh.summary <- sbc.under_dmh %>%
 
 ```{r}
 # glmm of macro cover ~ dead holdfast cover
+sbc.under_dmh.glmm <- glmmTMB(under_cover.mean ~ dmh_cover.mean + (1|site) + (1|year),
+                              family = gaussian(link = "identity"),
+                              data = sbc.under_dmh.summary)
+summary(sbc.under_dmh.glmm)
+
+# Check residuals
+hist(residuals(sbc.under_dmh.glmm))
+car::qqPlot(residuals(sbc.under_dmh.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(sbc.under_dmh.glmm, terms = ~dmh_cover.mean))
+sbc.under_dmh.predictions <- as.data.frame(ggpredict(sbc.under_dmh.glmm, terms = ~dmh_cover.mean))
+
+```
+
+Visualization of normalized model
+```{r}
+sbc.under_dmh.summary %>%
+  ggplot()+
+  geom_ribbon(data = sbc.under_dmh.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = sbc.under_dmh.predictions, 
+            aes(x = x, y = predicted))+
+  geom_jitter(aes(x = dmh_cover.mean, y = under_cover.mean),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "% cover of dead holdfasts",
+       y = "% cover of understory algal spp.") +
+  theme_classic(base_size = 12)
+```
+
+```{r}
+# glmm of macro cover ~ dead holdfast cover
 sbc.under_dmh.glmm.norm <- glmmTMB(under_cover.norm ~ dmh_cover.norm + (1|site) + (1|year),
                               family = gaussian(link = "identity"),
                               data = sbc.under_dmh.summary)
@@ -1004,13 +1236,187 @@ sbc.under_dmh.summary %>%
   theme_classic(base_size = 12)
 ```
 
+```{r}
+sbc_algae <- sbc %>%
+  filter(percent_cover > -1,
+         group == "ALGAE") %>% 
+  select(year, site, transect, quad, side, percent_cover)
+
+# Merge dead holdfast data and live macro data and remove quads with 0% dead holdfast cover
+sbc.algae_dmh <- merge(sbc_algae, sbc_dead)
+sbc.algae_dmh <- sbc.algae_dmh %>% 
+  filter(dmh_cover > 0)
+
+ggplot(sbc.algae_dmh, aes(x = dmh_cover, y = percent_cover)) +
+  geom_jitter()
+
+# summarize by year & site; calculate normalized values
+sbc.algae_dmh.summary <- sbc.algae_dmh %>% 
+  group_by(site, year) %>% 
+  summarize(algae_cover.mean = mean(percent_cover),
+            dmh_cover.mean = mean(dmh_cover)) %>% 
+  mutate(percent_cover.norm = algae_cover.mean/max(algae_cover.mean),
+         dmh_cover.norm = dmh_cover.mean/max(dmh_cover.mean))
+
+```
+
+```{r}
+# glmm of macro cover ~ dead holdfast cover
+sbc.algae_dmh.glmm <- glmmTMB(algae_cover.mean ~ dmh_cover.mean + (1|site) + (1|year),
+                              family = gaussian(link = "identity"),
+                              data = sbc.algae_dmh.summary)
+summary(sbc.algae_dmh.glmm)
+
+# Check residuals
+hist(residuals(sbc.algae_dmh.glmm))
+car::qqPlot(residuals(sbc.algae_dmh.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(sbc.algae_dmh.glmm, terms = ~dmh_cover.mean))
+sbc.algae_dmh.predictions <- as.data.frame(ggpredict(sbc.algae_dmh.glmm, terms = ~dmh_cover.mean))
+
+```
+
+Visualization of normalized model
+```{r}
+sbc.algae_dmh.summary %>%
+  ggplot()+
+  geom_ribbon(data = sbc.algae_dmh.predictions, 
+              aes(x = x, y = predicted, ymin =conf.low, ymax = conf.high), 
+              alpha =0.5,
+              fill = "#3B4F8E")+
+  geom_line(data = sbc.algae_dmh.predictions, 
+            aes(x = x, y = predicted))+
+  geom_jitter(aes(x = dmh_cover.mean, y = algae_cover.mean),
+             alpha = 0.6,
+             size = 2)+
+  labs(x = "% cover of dead holdfasts",
+       y = "% cover of macroalgae") +
+  theme_classic(base_size = 12)
+```
+
 ## Georgia Coastal Ecosystems
 ```{r}
 
-gce.wrack_disturbance <- read_csv("Data/Georgia Coastal Ecosystems/PLT-GCEM-1801_9_0.CSV") %>% 
+# Load and  clean data
+gce.biomass <- read_csv("Data/Georgia Coastal Ecosystems/GCE_Biomass_2000-2024.csv") %>% 
   clean_names()
 
+gce.biomass_dist <- gce.biomass %>% 
+  filter(quadrat_area == 0.25,
+         total_plant_biomass_m2 != "NA") %>% 
+  mutate(plot_disturbance = if_else(plot_disturbance == 1, "Disturbed", "Undisturbed"),
+         plot_disturbance = as.factor(plot_disturbance),
+         biomass.norm = total_plant_biomass_m2/max(total_plant_biomass_m2)) %>% 
+  select(c(1,2,4,7,16,24)) 
+
+
+# Summarize data for exploratory looks
+gce.biomass_dist.summary <- gce.biomass_dist %>% 
+  group_by(plot_disturbance) %>% 
+  summarize(biomass.mean = mean(total_plant_biomass_m2),
+            biomass.se = sd(total_plant_biomass_m2)/sqrt(n()))
+
+ggplot(gce.biomass_dist.summary, aes(x = plot_disturbance, y = biomass.mean)) +
+  geom_col() +
+  geom_errorbar(aes(ymax = biomass.mean + biomass.se,
+                    ymin = biomass.mean - biomass.se),
+                width = 0) +
+  theme_classic()
+
 ```
+
+Model of biomass ~ wrack disturbance 
+```{r}
+
+# Check normality of biomass variable
+hist(gce.biomass_dist$total_plant_biomass_m2)
+hist(log(gce.biomass_dist$total_plant_biomass_m2)) # Use log-transformed biomass variable in mixed model
+
+# Mixed effects model of biomass ~ wrack disturbance,random effects: year;  plot nested within zone nested within site
+gce.biomass_dist.glmm <- glmmTMB(
+  log(total_plant_biomass_m2 + 0.1) ~ plot_disturbance + (1 | year) + (1 | site/plot),
+  data = gce.biomass_dist,
+  family = gaussian()
+)
+
+summary(gce.biomass_dist.glmm)
+
+# Check residuals
+hist(residuals(gce.biomass_dist.glmm))
+car::qqPlot(residuals(gce.biomass_dist.glmm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(gce.biomass_dist.glmm, terms = ~plot_disturbance))
+gce.biomass_dist.predictions <- as.data.frame(ggpredict(gce.biomass_dist.glmm, terms = ~plot_disturbance))
+
+```
+
+Model visualization
+```{r}
+# Raw data
+ggplot(gce.biomass_dist.predictions, aes(x = x, y = predicted)) +
+  # geom_jitter(data = gce.biomass_dist,
+  #            aes(x = plot_disturbance, y = total_plant_biomass_m2),
+  #            alpha = 0.6,
+  #            width = 0.1) +
+  geom_errorbar(aes(ymax = conf.high,
+                ymin = conf.low),
+                width = 0) +
+  geom_point(size = 3) +
+  scale_y_continuous(limits = c(0,1300),
+                     expand = c(0,0)) +
+  labs(x = "Wrack disturbance",
+       y = Marshgrass~biomass~(g/m^2)) +
+  theme_classic(base_size = 12)
+
+```
+
+Model of biomass ~ wrack disturbance, normalized data
+```{r}
+
+# Check normality of biomass variable
+hist(gce.biomass_dist$biomass.norm)
+hist(log(gce.biomass_dist$biomass.norm)) # Use log-transformed biomass variable in mixed model
+
+# Mixed effects model of biomass ~ wrack disturbance,random effects: year;  plot nested within zone nested within site
+gce.biomass_dist.glmm.norm <- glmmTMB(
+ biomass.norm ~ plot_disturbance + (1 | year) + (1 | site/plot),
+  data = gce.biomass_dist,
+  family = gaussian()
+)
+
+summary(gce.biomass_dist.glmm.norm)
+
+# Check residuals
+hist(residuals(gce.biomass_dist.glmm.norm))
+car::qqPlot(residuals(gce.biomass_dist.glmm.norm))
+
+# Plot model predictions and create dataframe 
+plot(ggpredict(gce.biomass_dist.glmm.norm, terms = ~plot_disturbance))
+gce.biomass_dist.predictions.norm <- as.data.frame(ggpredict(gce.biomass_dist.glmm.norm, terms = ~plot_disturbance))
+
+```
+
+Model visualization, normalized data
+```{r}
+ggplot(gce.biomass_dist.predictions.norm, aes(x = x, y = predicted)) +
+  geom_errorbar(aes(ymax = conf.high,
+                ymin = conf.low),
+                width = 0) +
+  geom_point(size = 3) +
+  geom_point(data = gce.biomass_dist,
+             aes(x = ))
+  scale_x_discrete(limits = rev(levels(gce.biomass_dist.predictions.norm$x))) +
+  scale_y_continuous(limits = c(0,0.5),
+                     expand = c(0,0)) +
+  labs(x = "Wrack disturbance",
+       y = "Marshgrass biomass (normalized)") +
+  theme_classic(base_size = 12)
+
+```
+
+
 
 
 ## Bonanza Creek
@@ -1229,7 +1635,7 @@ Just trimming treatments
 ```{r}
 # Filter for only trim treatments, create normalized variable
 luq.seeding_counts.trim <- luq.mortality_counts %>% 
-  filter(#treatment == "Control" | treatment == "Trim+Debris",
+  filter(treatment == "Trim&clear" | treatment == "Trim+Debris",
          year %in% 2009) %>% 
   mutate(treatment = as.factor(treatment),
          #year = as.numeric(year),
@@ -1715,10 +2121,6 @@ luq.seedlings_litter.norm %>%
 # Analyses across systems
 ## Effect sizes
 ```{r}
-
-library(glmmTMB)
-library(broom.mixed)
-
 # Extract effect sizes from each mixed model
 knz.effects <- broom.mixed::tidy(knz.norm.glmm, effects = "fixed", conf.int = TRUE)
   knz.effects[knz.effects$term == "predictor", ]
@@ -1736,16 +2138,21 @@ sbc.effects <- broom.mixed::tidy(sbc.canopy_dmh.glmm.norm, effects = "fixed", co
   
 luq.effects <- broom.mixed::tidy(luq.seedling_counts.trim.norm.glmm, effects = "fixed", conf.int = TRUE)
 
+gce.effects <- broom.mixed::tidy(gce.biomass_dist.glmm.norm, effects = "fixed", conf.int = TRUE)
+
 
 # Assemble effect sizes from each ecosystem type
-lter.effects <- rbind(knz.effects, vcr.effects, mcr.effects, bnz.effects, sbc.effects, luq.effects)
+lter.effects <- rbind(knz.effects, vcr.effects, mcr.effects, bnz.effects, sbc.effects, luq.effects, gce.effects)
 lter.effects <- lter.effects %>% 
   filter(term != "(Intercept)") %>% 
-  mutate(ecosystem = c("Tallgrass prairie", "Oyster reef", "Coral reef", "Boreal forest", "Kelp forest", "Tropical forest"),
+  mutate(ecosystem = c("Tallgrass prairie", "Oyster reef", "Coral reef", "Boreal forest", "Kelp forest", "Tropical forest", "Saltmarsh"),
          significance = ifelse(conf.low > 0 | conf.high < 0, "Significant", "Not Significant"))
+
+write_csv(lter.effects, "Data/effect_sizes.csv")
 ```
 
 ```{r}
+
 # Effect size plot
 ggplot(lter.effects, aes(x = estimate, y = reorder(ecosystem, -estimate))) + #, color = significance)) +
   geom_point(size = 2) +
