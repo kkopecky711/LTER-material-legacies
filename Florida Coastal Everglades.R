@@ -1,5 +1,5 @@
-#### Florida Coastal Everglades ####
-# Analysis of hurricane sediment deposition on mangrove seedling development
+## Florida Coastal Everglades ##
+# Analysis of hurricane litterfall deposition on mangrove root production
 
 # Packages
 library(tidyverse)
@@ -32,7 +32,7 @@ litterfall.summary <- litterfall.post_hurr %>%
             se_litter = sd(total_weight)/sqrt(n())) %>% 
   filter(sitename != "TS/Ph8")
 
-#### Root production ----
+## Root production 
 # Load in datasets for root production after hurricanes, then bind
 root_production.wilma <- read_csv("Datasets/Florida Coastal Everglades/FCE1277_Root_Production_pre-hurricane.csv") %>% 
   clean_names() %>% 
@@ -72,13 +72,33 @@ ggplot(root_prod.litter, aes(x = mean_litter, y = root_prod.mean)) +
 
 ## Analysis
 # GLMM of mean fine root production ~ mean litterfall
-
 root_prod.glmm <- glmmTMB(
   root_prod.mean ~ mean_litter + (1 | plot_id) + (1 | sitename),
   data = root_prod.litter,
-  family = gaussian()
+  family = Gamma(link = "log")
 )
 summary(root_prod.glmm)
+
+root_prod.glmm.poly <- glmmTMB(
+  root_prod.mean ~ mean_litter + I(mean_litter^2) + (1 | plot_id) + (1 | sitename),
+  data = root_prod.litter,
+  family = Gamma(link = "log")
+)
+
+# Step 1: Center and scale mean_litter
+root_prod.litter$mean_litter_c <- scale(root_prod.litter$mean_litter, center = TRUE, scale = FALSE)
+
+# Step 2: Fit the quadratic model using the centered variable
+root_prod.glmm.poly <- glmmTMB(
+  root_prod.mean ~ mean_litter_c + I(mean_litter_c^2) + (1 | plot_id) + (1 | sitename),
+  data = root_prod.litter,
+  family = Gamma(link = "log")
+)
+
+
+# Diagnostics
+res <- simulateResiduals(root_prod.glmm)
+plot(res) # Tests are non-significant
 
 # To report effect size and CI in main text
 tidy(root_prod.glmm, effects = "fixed", conf.int = TRUE, conf.level = 0.95)%>% 

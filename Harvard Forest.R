@@ -2,12 +2,13 @@
 
 # Data include live and dead trees of different species and life stages
 
-## Questions for Audrey:
-
-# 1) What are the 'Hemlock' and 'Hardwood' treatments?
-# 2) Could the 'girdled' and 'logged' treatments be grouped so as to have a 'gradient' of deadwood cover?
-# 3) If yes to 2), is Hemlock or total sapling density ~ deadwood a sensible relationship to explore?
-
+# Packages
+library(tidyverse)
+library(janitor)
+library(glmmTMB)
+library(ggeffects)
+library(DHARMa)
+library(broom.mixed)
 
 library(tidyverse)
 setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis')
@@ -78,50 +79,74 @@ ggplot(gird_log.saps, aes(x = year, y = dens_ha_total, color = trt)) +
   facet_wrap(~block) +
   theme_minimal()
 
-# GLMM of sapling density as a function of treatment
-# Hemlock only
+## GLMM of sapling density as a function of treatment for Hemlock only
+# Set the logged treatment as the reference level
+gird_log.saps$trt <- relevel(gird_log.saps$trt, ref = "logged") 
 
-gird_log.saps$trt <- relevel(gird_log.saps$trt, ref = "logged") # Make sure the logged treatment is the reference level
-
+# Use Tweedie distribution with log-link
 hemlock_sap.glmm.tweedie <- glmmTMB(dens_ha_hemlock ~ trt + (1 | block/plot) + (1 | year),
                                     family = tweedie(link = "log"), 
                                     data = gird_log.saps)
 summary(hemlock_sap.glmm.tweedie)
 
+# Zero-inflated model
 hemlock_sap.glmm.tweedie.zi <- glmmTMB(dens_ha_hemlock ~ trt + (1 | block/plot) + (1 | year),
                                     family = tweedie(link = "log"),
                                     ziformula = ~1,
                                     data = gird_log.saps)
 summary(hemlock_sap.glmm.tweedie.zi)
-tidy(hemlock_sap.glmm.tweedie.zi, effects = "fixed", conf.int = TRUE, conf.level = 0.95)
 
-
+# Compare models to ensure zero-inflation improves model fit
 AIC(hemlock_sap.glmm.tweedie, hemlock_sap.glmm.tweedie.zi) # Zero-inflated model has lower AIC score
 
 # Diagnostics
 sim <- simulateResiduals(hemlock_sap.glmm.tweedie.zi)
 plot(sim)
 testZeroInflation(sim) 
-# Tests of resiudals seem to check out
+# Tests of residuals check out
+
+# To report effect size and CI in main text and table
+hfr_effect.raw <- tidy(hemlock_sap.glmm.tweedie.zi, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
+  filter(term == "trtgirdled")
+
+write_csv(hfr_effect.raw, "Datasets/Effect sizes/Raw/hfr_effect.raw.csv")
 
 ## Visualization
 # Get predicted values and CIs for each treatment
 preds <- ggpredict(hemlock_sap.glmm.tweedie.zi, terms = "trt")
 
-# Base plot: raw data
+ggplot() +
+  geom_jitter(data = gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock),
+              color = "darkgrey",
+              width = 0.15, 
+              alpha = 0.6) +
+  geom_errorbar(
+    data = preds,
+    aes(x = x, ymin = conf.low, ymax = conf.high),
+    width = 0) +
+  geom_point(data = preds,
+             aes(x = x, y = predicted),
+             size = 3) +
+  geom_line(data = preds, 
+            aes(x = x, y = predicted, group = group)) +
+  labs(x = "Dead hemlock status") +
+  theme_classic(base_size = 14)
+
+# Log-transformed for visual purposes
 ggplot(gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock + 1)) +
-  geom_jitter(width = 0.1, 
-              alpha = 0.6, 
-              size = 2) +
+  geom_jitter(color = "darkgrey",
+              width = 0.15, 
+              alpha = 0.6) +
   geom_pointrange(data = preds, aes(x = x, y = predicted + 1, ymin = conf.low + 1, ymax = conf.high + 1),
                   inherit.aes = FALSE,
-                  size = 1, 
+                  size = 0.75, 
                   color = "black", 
                   fill = "black", 
                   shape = 21) +
   geom_line(data = preds, aes(x = x, y = predicted + 1, group = group)) +
+  scale_x_discrete(labels = c("girdled" = "Standing", "logged" = "Removed")) +
   scale_y_continuous(trans = "log10",
-                     name = "Sapling density (no./ha, log + 1)") +
+                     name = expression("Sapling density (no./ha/yr, log"[10]*"+1)")) +
   labs(x = "Dead hemlock status") +
   theme_classic(base_size = 14)
 
@@ -132,86 +157,20 @@ gird_log.saps$dens_z <- scale(gird_log.saps$dens_ha_hemlock)
 # Fit the zero-inflated model using the z-scored response, and gaussian distribution (Tweedie not needed with scaled response)
 hemlock_sap.glmm.z <- glmmTMB(
   dens_z ~ trt + (1 | block/plot) + (1 | year),
+  dispformula = ~ trt,  # Allow residual variance to differ by treatment to account for heteroscedasticity
   family = gaussian(),
   data = gird_log.saps
 )
 summary(hemlock_sap.glmm.z)
 
+# Diagnostics
+sim.z <- simulateResiduals(hemlock_sap.glmm.z)
+plot(sim.z) # Tests are non-significant
+
 # Extract effect size and 95% CI using broom.mixed
-hemlock_effect <- tidy(hemlock_sap.glmm.z, effects = "fixed", conf.int = TRUE) %>%
+hfr_effect.z <- tidy(hemlock_sap.glmm.z, effects = "fixed", conf.int = TRUE) %>%
   filter(term == "trtgirdled")
 
-print(hemlock_effect)
+print(hfr_effect.z)
 
-write_csv(hemlock_effect, "Datasets/Effect sizes/hfr.effect_size.csv")
-
-
-
-
-
-#### Exploratory analyses ####
-
-# Dataframe for just girdled and logged treatments and adult trees
-gird_log.trees <- pred.resp %>% 
-  filter(trt %in% c("girdled", "logged"),
-         stratum == "Tree") %>% 
-  select(-c(14,16,17,19))
-
-## Exploratory graphs
-# Time series
-ggplot(gird_log.trees, aes(x = year, y = biomass_gm2_hemlock, color = trt)) +
-  geom_point() +
-  geom_line() +
-  labs(x = "Year",
-       y = "Biomass of Adult Hemlock") +
-  facet_wrap(~block) +
-  theme_minimal()
-
-# Adult tree biomass ~ deadwood
-ggplot(gird_log.trees, aes(x = volm3ha_TotalDead, y = biomass_gm2_hemlock, color = trt)) +
-  geom_point()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-## Saplings ~ deadwood
-ggplot(gird_log.saps, aes(x = volm3ha_TotalDead, y = dens_ha_hemlock, color = trt)) +
-  geom_point()
-
-ggplot(gird_log.saps, aes(x = massgm2_TotalDead, y = dens_ha_hemlock, color = trt)) +
-  geom_point()
-
-## All species of saplings
-ggplot(gird_log.saps, aes(x = massgm2_TotalDead, y = dens_ha_total, color = trt)) +
-  geom_point()
-
-ggplot(gird_log.saps, aes(x = volm3ha_TotalDead, y = dens_ha_total, color = trt)) +
-  geom_point() 
-
-
-#### Initial input of dead wood -------
-#another data frame to see how response rate is affected by INITIAL input of legacy material (let's pick 2007 since that is when the girdled trees would all have died)
-predictor07<-subset(predictorsW, predictorsW$year == 2007)
-predictor07<-predictor07[,c(1:3, 5:12)]
-pred.respINIT<- predictor07 %>% inner_join( responseW, 
-                                            by=c('plot', 'trt', 'block'))
-
-pred.resp$trt <- ordered(pred.resp$trt, levels = c("hemlock", "girdled", "logged", "hardwood"))
+write_csv(hfr_effect.z, "Datasets/Effect sizes/Standardized/hfr_effect.z.csv")

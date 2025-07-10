@@ -27,9 +27,11 @@ gce.biomass_dist <- gce.biomass %>%
 # Summarize data and visualize with exploratory graph
 gce.biomass_dist.summary <- gce.biomass_dist %>% 
   group_by(site, year, plot_disturbance) %>% 
-  summarize(biomass.mean = mean(total_plant_biomass_m2),
-            biomass.se = sd(total_plant_biomass_m2)/sqrt(n()))
+  summarize(biomass.mean = mean(total_plant_biomass_m2)) %>% #,
+            #biomass.se = sd(total_plant_biomass_m2)/sqrt(n()))
+  ungroup()
 
+# Exploratory graph
 ggplot(gce.biomass_dist.summary, aes(x = plot_disturbance, y = biomass.mean)) +
   geom_col() +
   geom_errorbar(aes(ymax = biomass.mean + biomass.se,
@@ -38,16 +40,25 @@ ggplot(gce.biomass_dist.summary, aes(x = plot_disturbance, y = biomass.mean)) +
   theme_classic()
 
 ## Analysis
-model_raw <- glmmTMB(
+marsh_glmm.raw <- glmmTMB(
   biomass.mean ~ plot_disturbance + (1 | site) + (1 | year),
   data = gce.biomass_dist.summary,
-  family = gaussian()
+  family = gaussian(link = "log")
 )
-summary(model_raw)
-tidy(model_raw, effects = "fixed", conf.int = TRUE, conf.level = 0.95)
+summary(marsh_glmm.raw)
+
+# Diagnostics
+res <- simulateResiduals(marsh_glmm.raw)
+plot(res) # Tests are non-significant
+
+# To report effect size and CI in main text and table 
+gce_effect.raw <- tidy(marsh_glmm.raw, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
+  filter(term == "plot_disturbance.L")
+
+write_csv(gce_effect.raw, "Datasets/Effect sizes/Raw/gce_effect.raw.csv")
 
 ## Visualization
-preds <- ggpredict(model_raw, terms = "plot_disturbance")
+preds <- ggpredict(marsh_glmm.raw, terms = "plot_disturbance")
 
 ggplot() +
   geom_jitter(data = gce.biomass_dist.summary,
@@ -64,53 +75,29 @@ ggplot() +
   geom_line(data = preds,
             aes(x = x, y = predicted, group = group)) +
   labs(x = "Marshwrack disturbance",
-    y = expression("Marshgrass biomass (g/m"^2*")")) +
+    y = expression("Marshgrass biomass (g/m"^2*"/yr)")) +
   theme_classic(base_size = 14)
 
 ## Z-score standardization
 # Standardize  response only (since predictor is binary and categorical)
 gce.biomass_dist_z <- gce.biomass_dist.summary %>%
-  mutate(
-    biomass_z = scale(biomass.mean)[,1],
-    disturbance_bin = ifelse(plot_disturbance == "Undisturbed", 0, 1)
-  )
+  mutate(biomass_z = scale(biomass.mean)[, 1])
 
-model_z <- glmmTMB(
-  biomass_z ~ disturbance_bin + (1 | site/year),
+marsh_model.z <- glmmTMB(
+  biomass_z ~ plot_disturbance + (1 | site) + (1 | year),
   data = gce.biomass_dist_z,
   family = gaussian()
 )
-summary(model_z)
+summary(marsh_model.z)
 
-## Visualization
-preds_z <- ggpredict(model_z, terms = "disturbance_bin")
-
-ggplot() +
-  geom_jitter(data = gce.biomass_dist_z,
-              aes(x = disturbance_bin, y = biomass_z),
-              width = 0.1, 
-              alpha = 0.5, 
-              size = 2, 
-              color = "darkgray") +
-  geom_point(data = preds_z,
-             aes(x = x, y = predicted),
-             size = 4, 
-             color = "black") +
-  geom_errorbar(data = preds_z,
-                aes(x = x, ymin = conf.low, ymax = conf.high),
-                width = 0, 
-                color = "black") +
-  #scale_x_continuous(breaks = c(0,1)) +
-  labs(
-    x = "Disturbance",
-    y = expression("Marshgrass biomass (Z-score)")
-  ) +
-  theme_classic(base_size = 14)
+# Diagnostics
+res.z <- simulateResiduals(marsh_model.z)
+plot(res.z) # Tests are non-significant
 
 ## Extract effect size
-marshgrass_effect <- tidy(model_z, effects = "fixed", conf.int = TRUE) %>% 
-  filter(term == "disturbance_bin")
+gce_effect.z <- tidy(marsh_model.z, effects = "fixed", conf.int = TRUE) %>% 
+  filter(term == "plot_disturbance.L")
 
-print(marshgrass_effect)
+print(gce_effect.z)
 
-write_csv(marshgrass_effect, "Datasets/Effect sizes/gce.effect_size.csv")
+write_csv(gce_effect.z, "Datasets/Effect sizes/Standardized/gce_effect.z.csv")
