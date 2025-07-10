@@ -10,17 +10,17 @@
 
 
 library(tidyverse)
-setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis/Datasets/Harvard Forest')
+setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis')
 
 # Dead wood sampled in 2005, 2007, 2009, 2011, 2013, 2015, 2017, 2021 (next 2025).
 # Dead wood amounts inferred for 2004, 2014, and 2019 (to line up with tree census dates)
-predictorsAll<-read.csv('DeadByPlot.csv', header=TRUE)
+predictorsAll<-read.csv('Datasets/Harvard Forest/DeadByPlot.csv', header=TRUE)
 str(predictorsAll)
 predictorsAll<-predictorsAll %>% mutate_at(c(2,3,5), as.factor)
 
 # Trees (>5 cm dbh) measured in 2004, 2009, 2014, 2019, 2024
 # Sapling trees (>1.3 m tall but <5 cm dbh) measured 2004, 2007, 2009, 2011, 2013, 2015, 2017, 2019, 2021, 2023
-responseAll<-read.csv('TreeSapDensSpecies.csv', header=TRUE)
+responseAll<-read.csv('Datasets/Harvard Forest/TreeSapDensSpecies.csv', header=TRUE)
 str(responseAll)
 responseAll$species<-ifelse(is.na(responseAll$species), 'none', responseAll$species)
 responseAll<-responseAll %>% mutate_at(c(2,3,5,8), as.factor)
@@ -52,6 +52,103 @@ predictorsW<-predictors %>%
 pred.resp <- predictorsW %>% inner_join( responseW, 
                                          by=c('plot','year', 'trt', 'block'))
 
+## Analyses
+# Dataframe for just girdled and logged treatments and just saplings
+gird_log.saps <- pred.resp %>% 
+  filter(trt %in% c("girdled", "logged"),
+         stratum == "Sapling",
+         year > 2004) %>% 
+  select(c("plot", "trt", "block", "year", "dens_ha_hemlock", "dens_ha_total"))
+
+# time series of treatments, hemlock saplings only
+ggplot(gird_log.saps, aes(x = year, y = dens_ha_hemlock, color = trt)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Year",
+       y = "Density of Hemlock saplings (no./ha)") +
+  facet_wrap(~block) +
+  theme_minimal()
+
+# time series of treatments, all species of saplings
+ggplot(gird_log.saps, aes(x = year, y = dens_ha_total, color = trt)) +
+  geom_point() +
+  geom_line() +
+  labs(x = "Year",
+       y = "Density of saplings (no./ha)") +
+  facet_wrap(~block) +
+  theme_minimal()
+
+# GLMM of sapling density as a function of treatment
+# Hemlock only
+
+gird_log.saps$trt <- relevel(gird_log.saps$trt, ref = "logged") # Make sure the logged treatment is the reference level
+
+hemlock_sap.glmm.tweedie <- glmmTMB(dens_ha_hemlock ~ trt + (1 | block/plot) + (1 | year),
+                                    family = tweedie(link = "log"), 
+                                    data = gird_log.saps)
+summary(hemlock_sap.glmm.tweedie)
+
+hemlock_sap.glmm.tweedie.zi <- glmmTMB(dens_ha_hemlock ~ trt + (1 | block/plot) + (1 | year),
+                                    family = tweedie(link = "log"),
+                                    ziformula = ~1,
+                                    data = gird_log.saps)
+summary(hemlock_sap.glmm.tweedie.zi)
+tidy(hemlock_sap.glmm.tweedie.zi, effects = "fixed", conf.int = TRUE, conf.level = 0.95)
+
+
+AIC(hemlock_sap.glmm.tweedie, hemlock_sap.glmm.tweedie.zi) # Zero-inflated model has lower AIC score
+
+# Diagnostics
+sim <- simulateResiduals(hemlock_sap.glmm.tweedie.zi)
+plot(sim)
+testZeroInflation(sim) 
+# Tests of resiudals seem to check out
+
+## Visualization
+# Get predicted values and CIs for each treatment
+preds <- ggpredict(hemlock_sap.glmm.tweedie.zi, terms = "trt")
+
+# Base plot: raw data
+ggplot(gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock + 1)) +
+  geom_jitter(width = 0.1, 
+              alpha = 0.6, 
+              size = 2) +
+  geom_pointrange(data = preds, aes(x = x, y = predicted + 1, ymin = conf.low + 1, ymax = conf.high + 1),
+                  inherit.aes = FALSE,
+                  size = 1, 
+                  color = "black", 
+                  fill = "black", 
+                  shape = 21) +
+  geom_line(data = preds, aes(x = x, y = predicted + 1, group = group)) +
+  scale_y_continuous(trans = "log10",
+                     name = "Sapling density (no./ha, log + 1)") +
+  labs(x = "Dead hemlock status") +
+  theme_classic(base_size = 14)
+
+## Z-score standardized model
+# Scale the response variable
+gird_log.saps$dens_z <- scale(gird_log.saps$dens_ha_hemlock)
+
+# Fit the zero-inflated model using the z-scored response, and gaussian distribution (Tweedie not needed with scaled response)
+hemlock_sap.glmm.z <- glmmTMB(
+  dens_z ~ trt + (1 | block/plot) + (1 | year),
+  family = gaussian(),
+  data = gird_log.saps
+)
+summary(hemlock_sap.glmm.z)
+
+# Extract effect size and 95% CI using broom.mixed
+hemlock_effect <- tidy(hemlock_sap.glmm.z, effects = "fixed", conf.int = TRUE) %>%
+  filter(term == "trtgirdled")
+
+print(hemlock_effect)
+
+write_csv(hemlock_effect, "Datasets/Effect sizes/hfr.effect_size.csv")
+
+
+
+
+
 #### Exploratory analyses ####
 
 # Dataframe for just girdled and logged treatments and adult trees
@@ -74,41 +171,26 @@ ggplot(gird_log.trees, aes(x = year, y = biomass_gm2_hemlock, color = trt)) +
 ggplot(gird_log.trees, aes(x = volm3ha_TotalDead, y = biomass_gm2_hemlock, color = trt)) +
   geom_point()
 
-# Dataframe for just girdled and logged treatments and just saplings
-gird_log.saps <- pred.resp %>% 
-  filter(trt %in% c("girdled", "logged"),
-         stratum == "Sapling") %>% 
-  select(-c(14,16,17,19))
 
-# time series of treatments, hemlock saplings only
-ggplot(gird_log.saps, aes(x = year, y = dens_ha_hemlock, color = trt)) +
-  geom_point() +
-  geom_line() +
-  labs(x = "Year",
-       y = "Density of Hemlock saplings (no./ha)") +
-  facet_wrap(~block) +
-  theme_minimal()
 
-# time series of treatments, all species of saplings
-ggplot(gird_log.saps, aes(x = year, y = dens_ha_total, color = trt)) +
-  geom_point() +
-  geom_line() +
-  labs(x = "Year",
-       y = "Density of saplings (no./ha)") +
-  facet_wrap(~block) +
-  theme_minimal()
 
-# GLMM of Hemlock sapling density over time
-library(glmmTMB)
 
-hemlock.saps <- gird_log.saps %>% 
-  select(c(1:4, 14)) %>% 
-  mutate(dens_ha_hemlock = (dens_ha_hemlock + 1))
 
-hemlock_sap.glmm <- glmmTMB(dens_ha_hemlock ~ trt,
-                            family = gaussian(link = "log"),
-                            data = hemlock.saps)
-summary(hemlock_sap.glmm)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 ## Saplings ~ deadwood
 ggplot(gird_log.saps, aes(x = volm3ha_TotalDead, y = dens_ha_hemlock, color = trt)) +

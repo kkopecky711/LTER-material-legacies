@@ -1298,7 +1298,7 @@ sbc.algae_dmh.summary %>%
 ## Georgia Coastal Ecosystems
 ```{r}
 
-# Load and  clean data
+# Load and clean data
 gce.biomass <- read_csv("Data/Georgia Coastal Ecosystems/GCE_Biomass_2000-2024.csv") %>% 
   clean_names()
 

@@ -8,6 +8,13 @@
 
 # plot live oyster against dead
 
+# Packages
+library(tidyverse)
+library(janitor)
+library(glmmTMB)
+library(ggeffects)
+library(DHARMa)
+library(broom.mixed)
 
 # Working directory
 setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis')
@@ -32,7 +39,7 @@ vcr.juv_dead <- vcr.raw %>%
            month %in% c(9, 10, 11) ~ "Fall",
            TRUE ~ NA_character_),
          obvs_id = paste(year, season, site, sample, sep = "_")) %>%
-  select(obvs_id, site, season, species, species_count) %>% 
+  select(obvs_id, site, year, season, species, species_count) %>% 
   pivot_wider(names_from = "species", 
               values_from = "species_count", 
               values_fn = sum)
@@ -49,6 +56,11 @@ ggplot(vcr.juv_dead, aes(x = Dead, y = Juvenile, color = season)) +
        y = "Juvenile oyster density") +
   theme_classic()
 
+# Remove summer observations because they are not representative
+vcr.juv_dead <- vcr.juv_dead %>% 
+  filter(season != "Summer",
+         Dead < 350) # Need to ask Max about these outliers (Dead > 350); all from the same site in the same year. Remove at the break? Or remove all from this year/site combo?
+
 ## Analyses
 hist(vcr.juv_dead$Juvenile) # Highly skewed toward zero
 mean(vcr.juv_dead$Juvenile)
@@ -56,21 +68,38 @@ var(vcr.juv_dead$Juvenile) # Variance >> mean ==> overdispersed, use negative bi
 
 # GLMM with negative binomial distribution (due to overdispersion) and zero-inflation
 mod_zinb <- glmmTMB(
-  Juvenile ~ Dead + (1 | site) + (1 | season),
+  Juvenile ~ Dead + (1 | site) + (1 | year),
   ziformula = ~1,
   data = vcr.juv_dead,
-  family = nbinom2
+  family = nbinom2() # negative binomial because variables are count data with overdispersion
 )
 
 # Standard negative binomial model (no zero inflation)
 mod_nb <- glmmTMB(
-  Juvenile ~ Dead + (1 | site) + (1 | season),
+  Juvenile ~ Dead + (1 | site) + (1 | year),
   data = vcr.juv_dead,
   family = nbinom2
 )
 
+# # Try summarized dataframe with gaussian dist
+# vcr.juv_dead.summary <- vcr.juv_dead %>% 
+#   group_by(site, year) %>% 
+#   summarize(mean_juv = mean(Juvenile),
+#             mean_dead = mean(Dead))
+# 
+# mod_gauss <- glmmTMB(
+#   mean_juv ~ mean_dead + (1 | site) + (1 | year),
+#   data = vcr.juv_dead.summary,
+#   family = gaussian(link = "logit")
+# )
+# summary(mod_gauss)
+
 # Compare AIC
 AIC(mod_nb, mod_zinb) # zero-inflated has better fit
+
+# Summary output from zero-inflated model
+summary(mod_zinb)
+tidy(mod_zinb, effects = "fixed", conf.int = TRUE, conf.level = 0.95)
 
 # Simulate residuals
 simres <- simulateResiduals(mod_zinb)
@@ -85,18 +114,18 @@ preds <- ggpredict(
 
 # Plot predicted values with 95% confidence intervals
 ggplot(preds, aes(x = x, y = predicted)) +
-  geom_line(size = 1.2) +
+  geom_line() +
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
-              alpha = 0.3,
-              fill = "#3B4F8E") +
-  geom_jitter(data = vcr.juv_dead, aes(x = Dead, y = Juvenile),
+              alpha = 0.3) +
+  geom_point(data = vcr.juv_dead, aes(x = Dead, y = Juvenile),
               alpha = 0.6,
-              size = 2,
-              width = 0.1) +
+              size = 2) +
+  #scale_y_continuous(limits = c(0, 5000)) +
   labs(
-    x = Dead~oyster~density~(no./0.25~m^2),
-    y = "Juvenile oyster density (no./m²)"
+    x = "Dead oyster density (no./0.25 m²)",
+    y = "Juvenile oyster density (no./0.25 m²)"
   ) +
+  #scale_y_continuous(limits = c(0, 4000)) +
   theme_classic(base_size = 14)
 
 #### Normalized model for ecosystem comparison ----
@@ -108,15 +137,38 @@ vcr.juv_dead.z$juv_density_z <- scale(vcr.juv_dead.z$Juvenile)[, 1]
 vcr.juv_dead.z$dead_density_z  <- scale(vcr.juv_dead.z$Dead)[, 1]
 
 zinb_z_gaussian <- glmmTMB(
-  juv_density_z ~ dead_density_z + (1 | site) + (1 | season),
-  ziformula = ~1,
+  juv_density_z ~ dead_density_z + (1 | site/year),
   family = gaussian,
   data = vcr.juv_dead.z
 )
+summary(zinb_z_gaussian)
 
+## Visualization
+preds_z <- ggpredict(
+  zinb_z_gaussian,
+  terms = "dead_density_z")
+
+# Plot predicted values with 95% confidence intervals
+ggplot(preds_z, aes(x = x, y = predicted)) +
+  geom_line(size = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3,
+              fill = "#3B4F8E") +
+  geom_point(data = vcr.juv_dead.z, aes(x = dead_density_z, y = juv_density_z),
+             alpha = 0.6,
+             size = 2) +
+  labs(
+    x = "Dead oyster density (Z-score)",
+    y = "Juvenile oyster density (Z-score)"
+  ) +
+  theme_classic(base_size = 14)
+
+# Extract effect size
 library(broom.mixed)
 
-effect_z <- tidy(zinb_z_gaussian, effects = "fixed", conf.int = TRUE) |>
+oyster_effect <- tidy(zinb_z_gaussian, effects = "fixed", conf.int = TRUE) |>
   filter(term == "dead_density_z")
 
-print(effect_z)
+print(oyster_effect)
+
+write_csv(oyster_effect, "Datasets/Effect sizes/vcr.effect_size.csv")
