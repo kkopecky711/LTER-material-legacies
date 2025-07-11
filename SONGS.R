@@ -30,7 +30,7 @@ ggplot(songs.no_zeroes, aes(x = dmaho_percent_cover, y = mapy_count_per_unit_are
   theme_classic()
 
 ## Analysis
-# Fit Poisson model
+# Fit neagative binomial GLMM
 kelp_nbinom.glmm <- glmmTMB(
   mapy_count_per_unit_area ~ dmaho_percent_cover + 
     (1 | reef_code/transect_option_code) + (1 | year),
@@ -38,7 +38,16 @@ kelp_nbinom.glmm <- glmmTMB(
   family = nbinom2(link = "log") # negative binomial because response is count data with overdispersion
 )
 summary(kelp_nbinom.glmm)
-tidy(kelp_nbinom.glmm, effects = "fixed", conf.int = TRUE, conf.level = 0.95)
+
+# Diagnostics
+res <- simulateResiduals(kelp_nbinom.glmm)
+plot(res) # Tests are reasonable
+
+# Extract effect size and CI, write to .csv file
+songs_effect.raw <- tidy(kelp_nbinom.glmm, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
+  filter(term == "dmaho_percent_cover")
+
+write_csv(songs_effect.raw, "Datasets/Effect sizes/Raw/songs_effect.raw.csv")
 
 # Get model predictions
 preds <- ggpredict(kelp_nbinom.glmm, terms = "dmaho_percent_cover")
@@ -47,8 +56,9 @@ preds <- ggpredict(kelp_nbinom.glmm, terms = "dmaho_percent_cover")
 ggplot() +
   geom_jitter(data = songs.no_zeroes, 
              aes(x = dmaho_percent_cover, y = mapy_count_per_unit_area), 
-             alpha = 0.5, 
-             shape = 16) +
+             color = "darkgrey", 
+             alpha = 0.6, 
+             width = 0.15) +
   geom_line(data = preds, 
             aes(x = x, y = predicted), 
             linewidth = 1.2) +
@@ -56,7 +66,7 @@ ggplot() +
               aes(x = x, ymin = conf.low, ymax = conf.high), 
               alpha = 0.3) +
   labs(x = "% cover of dead holdfasts",
-       y = Juvenile~kelp~density~(count/m^2)) +
+       y = Juvenile~kelp~density~(count/m^2/yr)) +
   theme_classic(base_size = 14)
 
 
@@ -68,16 +78,20 @@ songs_z <- songs.no_zeroes %>%
     dmaho_cover_z = scale(dmaho_percent_cover)[, 1]
   )
 
-kelp_z_model <- glmmTMB(
-  mapy_count_z ~ dmaho_cover_z + (1 | reef_code/transect_option_code/quadrat_option_code) + (1 | year),
+kelp_glmm.z <- glmmTMB(
+  mapy_count_z ~ dmaho_cover_z + (1 | reef_code/transect_option_code) + (1 | year),
+  dispformula = ~ dmaho_cover_z,
   data = songs_z,
-  family = gaussian(link = "identity")  # z-scored response → normal distribution
+  family = gaussian()
 )
+summary(kelp_glmm.z)
 
-summary(kelp_z_model)
+# Diagnostics
+res.z <- simulateResiduals(kelp_glmm.z)
+plot(res.z) # Tests are reasonable
 
 # Get predicted relationship from z-score model
-preds_z <- ggpredict(kelp_z_model, terms = "dmaho_cover_z")
+preds_z <- ggpredict(kelp_glmm.z, terms = "dmaho_cover_z")
 
 # Plot predictions with raw values as background
 ggplot() +
@@ -96,16 +110,9 @@ ggplot() +
   ) +
   theme_classic(base_size = 14)
 
-
-
 ## Effect size
-kelp_effect <- tidy(kelp_z_model, effects = "fixed", conf.int = TRUE) %>%
-  mutate(
-    effect = "fixed",
-    component = "cond",
-    statistic = estimate / std.error
-  ) %>%
-  select(effect, component, term, estimate, std.error, statistic, p.value, conf.low, conf.high)%>%
+songs_effect.z <- tidy(kelp_glmm.z, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
   filter(term == "dmaho_cover_z")
 
-write_csv(kelp_effect, "Datasets/Effect sizes/songs.effect_size.csv")
+write_csv(songs_effect.z, "Datasets/Effect sizes/Standardized/songs_effect.z.csv")
+

@@ -1,6 +1,15 @@
 #### H.J. Andrews Forest ####
 # Analysis of tree growth, mortality, and ingrowth as a function of standing and downed dead wood
 
+
+# Average tree growth (growth_ba_spp) over 20-25 years after initial dead wood census 
+# Use total mass of deadwood
+# If there are multiple measurements per plot within stand, use earlier one (check if there are)
+# Start with combining all species within a plot
+# Then try with just Douglas fir (PMSE) 
+
+
+
 # Working directory
 setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis')
 
