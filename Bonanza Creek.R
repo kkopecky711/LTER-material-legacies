@@ -48,7 +48,7 @@ write_csv(bnz_effect.raw, "Datasets/Effect sizes/Raw/bnz_effect.raw.csv")
 # Generate predicted values
 preds <- ggpredict(seed_glmm.raw, terms = "bs_stg_ba")
 
-# Plot predictions with 95% CI
+# Plot predictions with 95% CI and raw values
 ggplot(preds, aes(x = x, y = predicted)) +
   geom_point(data = seeds,
              aes(x = bs_stg_ba,
@@ -65,7 +65,7 @@ ggplot(preds, aes(x = x, y = predicted)) +
   scale_y_continuous(trans = "log10") + 
   theme_classic(base_size = 14)
 
-## Z-score standardization
+## Standardized model ----
 seeds_z <- seeds %>%
   mutate(
     bs_stg_ba_z = scale(bs_stg_ba)[, 1],

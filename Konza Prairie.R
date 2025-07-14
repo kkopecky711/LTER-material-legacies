@@ -135,6 +135,4 @@ plot(res.z) # Tests are non-significant
 knz_effect.z <- tidy(grass_glmm_z, effects = "fixed", conf.int = TRUE) %>% 
   filter(term == "burn_catUnburned")
 
-print(knz_effect.z)
-
 write_csv(knz_effect.z, "Datasets/Effect sizes/Standardized/knz_effect.z.csv")
