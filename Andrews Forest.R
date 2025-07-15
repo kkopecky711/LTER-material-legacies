@@ -1,15 +1,6 @@
 #### H.J. Andrews Forest ####
 # Analysis of tree growth, mortality, and ingrowth as a function of standing and downed dead wood
 
-
-# Average tree growth (growth_ba_spp) over 20-25 years after initial dead wood census 
-# Use total mass of deadwood
-# If there are multiple measurements per plot within stand, use earlier one (check if there are)
-# Start with combining all species within a plot
-# Then try with just Douglas fir (PMSE) 
-
-
-
 # Working directory
 setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis')
 
@@ -22,58 +13,88 @@ library(DHARMa)
 library(broom.mixed)
 
 # Dead tree data
-hja_dead <- read_csv("Datasets/Andrews Forest/OHJA_downed wood summary.csv") %>% 
+hja_dead <- read_csv("Datasets/Andrews Forest/OHJA_downed wood summary_v2.csv") %>% 
   clean_names() %>% 
-  # filter(stand %in% c("RS01", "RS02", "RS03", "RS04", "RS05", "RS07", "RS08", "RS10", "RS12", "RS14", "RS15", "RS16", "RS17", "RS18", "RS20", "RS22", "RS23", "RS24", "RS26", "RS27", "RS29", "RS31", "RS33")) %>% 
-  mutate(obs_id = paste(stand, plot, year, sep = "_"))
+  mutate(obs_id = paste(stand, plot, year, sep = "_")) %>% 
+  rename(cwd_year = year)
 
-# Live tree data
-hja_live <- read_csv("Datasets/Andrews Forest/PSP_Plot_Change_20250610.csv") %>% 
+## Douglas fir only ----
+# Live tree data for Douglas fir (PSME)
+hja_live <- read_csv("Datasets/Andrews Forest/PSP_Plot_Change_20year_PSME.csv") %>% 
   clean_names() %>% 
-  filter(d_year != "NA")
+  mutate(obs_id = paste(stand, plot, cwd_year, sep = "_"))
 
-# Group species within live tree data
-hja_live.spp_grouped <- hja_live %>%
-  group_by(stand, plot, year) %>% 
-  summarize(mortality = sum(mort_ba_spp),
-            ingrowth = sum(ingrowth_ba_spp),
-            growth = sum(growth_ba_spp)) %>% 
-  mutate(plot = as.character(plot),
-         obs_id = paste(stand, plot, year, sep = "_"))
+# Now merge using stand, plot, and cwd_year
+live_dead <- inner_join(hja_live, hja_dead,
+                          by = c("stand", "plot", "cwd_year"))
 
-# Step 1: Rename columns for clarity
-dead <- hja_dead %>%
-  rename(year_dead = year) %>% 
-  select(-obs_id)
+# Calculate dead wood per hectare and individual tree growth rates, remove unneeded columns
+live_dead.growth <- live_dead %>% 
+  mutate(dw_mass_ha = total_mass/area_ha,
+         dw_vol_ha = total_volume/area_ha,
+         dw_cover_ha = total_cover/area_ha,
+         dw_area_ha = total_area/area_ha,
+         tree_growth_ind = growth_baph_spp / (tph0_spp * surv_prop_spp) / d_year) %>% 
+  select(c(stand, plot, cwd_year, dw_mass_ha, dw_vol_ha, dw_cover_ha, dw_area_ha, tree_growth_ind))
 
-live <- hja_live.spp_grouped %>%
-  rename(year_live = year)%>% 
-  select(-obs_id)
+## Analysis
+tree_glmm.raw <- glmmTMB(
+  tree_growth_ind ~ dw_mass_ha + (1 | stand),
+  data = live_dead.growth,
+  family = gaussian()
+)
+summary(tree_glmm.raw)
 
-# Step 2: Join on stand and plot
-temporal_joined <- inner_join(live, dead, by = c("stand", "plot")) %>%
-  # Step 3: Keep only cases where live year is after dead year
-  filter(year_live > year_dead) %>%
-  # Step 4: Calculate time since dead measurement
-  mutate(years_since_dead = year_live - year_dead)
+# Diagnostics
+res <- simulateResiduals(tree_glmm.raw)
+plot(res) # Tests are non-significant
 
-# Filter for only first two records after dead measurement
-temporal_joined.first_two <- temporal_joined %>%
-  group_by(stand, plot, year_dead) %>%
-  arrange(years_since_dead, .by_group = TRUE) %>%
-  slice_head(n = 2) %>%
-  ungroup()
+# To report effect size and CI in main text and table
+hja_effect.raw <- tidy(tree_glmm.raw, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
+  filter(term == "dw_mass_ha")
 
-# Exploratory graph
-ggplot(temporal_joined, aes(x = total_volume, y = growth)) +
-  geom_point() +
-  geom_smooth(method = "lm") +
-  theme_classic()
+write_csv(hja_effect.raw, "Datasets/Effect sizes/Raw/hja_effect.raw.csv")
 
+## Visualization
+# Generate datatable of model predictions
+preds <- ggpredict(tree_glmm.raw, terms = "dw_mass_ha")
 
-## 
-hja.summary <- temporal_joined %>% 
-  group_by(stand, plot, years_since_dead) %>% 
-  summarize(mean_growth = mean(growth),
-            mean_dead = mean(total_volume))
+# Plot predicted values with 95% confidence intervals and raw values
+ggplot() +
+  geom_point(data = live_dead.growth, 
+             aes(x = dw_mass_ha, y = tree_growth_ind),
+             alpha = 0.6,
+             color = "darkgrey") +
+  geom_line(data = preds, 
+            aes(x = x, y = predicted),
+            linewidth = 1.2) +
+  geom_ribbon(data = preds,
+              aes(x = x, y = predicted, 
+                  ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3) +
+  labs(x = "Dead wood mass (kg/ha)",
+       y = "Individual tree growth (m²/yr)") +
+  theme_classic(base_size = 14)
 
+## Standardized model
+# Scale predictor and response only to their Z-scores
+live_dead.growth <- live_dead.growth %>%
+  mutate(dw_mass_ha.z = scale(dw_mass_ha)[, 1],
+         tree_growth_ind.z = scale(tree_growth_ind)[, 1])
+
+tree_glmm.z <- glmmTMB(
+  tree_growth_ind.z ~ dw_mass_ha.z + (1 | stand),
+  data = live_dead.growth,
+  family = gaussian()
+)
+summary(tree_glmm.z)
+
+# Diagnostics
+res.z <- simulateResiduals(tree_glmm.z)
+plot(res.z) # Tests are non-significant
+
+# Extract effect size and CI, write to .csv file
+hja_effect.z <- tidy(tree_glmm.z, effects = "fixed", conf.int = TRUE) %>% 
+  filter(term == "dw_mass_ha.z")
+
+write_csv(hja_effect.z, "Datasets/Effect sizes/Standardized/hja_effect.z.csv")

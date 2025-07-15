@@ -55,7 +55,7 @@ library(tidyverse)
 library(gt)
 
 # Read in the data
-model_table <- read_csv("Figures/GLMM structures.csv") %>% 
+model_table <- read_csv("Figures/Tables/GLMM structures.csv") %>% 
   gt() %>%
   tab_header(
     title = md("**Model Structures by Ecosystem (Raw Relationships)**")
@@ -64,7 +64,7 @@ model_table <- read_csv("Figures/GLMM structures.csv") %>%
     ecosystem_type = "Ecosystem Type",
     material_legacy_predictor = "Material Legacy Predictor (Fixed Effect)",
     demographic_response = "Demographic Response",
-    'distribution_(link)' = "Distribution (Link Function)",
+    'distribution_(link function)' = "Distribution (Link Function)",
     random_effects = "Random Effects"
   ) %>%
   tab_options(
@@ -76,3 +76,4 @@ model_table <- read_csv("Figures/GLMM structures.csv") %>%
     data_row.padding = px(5)
   ) 
 
+model_table
