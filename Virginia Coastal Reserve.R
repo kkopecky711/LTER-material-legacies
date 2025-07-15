@@ -110,7 +110,7 @@ ggplot(preds, aes(x = x*4, y = predicted*4)) +
               alpha = 0.3) +
   labs(
     x = "Dead oyster density (no./m²)",
-    y = "Juvenile oyster density (no./m²)"
+    y = "Juvenile oyster density (no./m²/yr)"
   ) +
   theme_classic(base_size = 14)
 

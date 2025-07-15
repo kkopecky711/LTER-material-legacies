@@ -77,3 +77,80 @@ model_table <- read_csv("Figures/Tables/GLMM structures.csv") %>%
   ) 
 
 model_table
+
+#### Table S3: GLMM model outputs ----
+library(tidyverse)
+library(flextable)
+library(officer)
+
+# Define the folder and matching file names with ecosystem labels
+file_paths <- list.files("Datasets/Effect sizes/Raw/", pattern = "*.csv", full.names = TRUE)
+ecosystems <- c("Boreal forest", "Mangrove forest", "Saltmarsh", "Temperate forest", "Temperate rainforest", "Tallgrass prairie", "Tropical forest",
+                  "Coral reef", "Kelp forest", "Oyster reef")
+
+# Read and combine
+model_outputs <- map2_dfr(file_paths, ecosystems, ~ {
+  read_csv(.x) %>% mutate(Ecosystem = .y)
+})
+
+# Combine all model outputs into one table
+model_outputs <- map2_dfr(file_paths, ecosystems, ~ {
+  read_csv(.x) %>% mutate(Ecosystem = .y)
+})
+
+# Clean and format model output
+model_outputs_clean <- model_outputs %>%
+  filter(effect == "fixed") %>%
+  select(Ecosystem, estimate, conf.low, conf.high, p.value) %>%
+  mutate(
+    across(
+      .cols = c(estimate, conf.low, conf.high, p.value),
+      .fns = ~ ifelse(abs(.) < 0.001, formatC(., format = "e", digits = 2), formatC(., format = "f", digits = 3))
+    )
+  )
+
+# Order ecosystem types according to main figures
+ecosystem_order <- c(
+  "Temperate forest",
+  "Oyster reef",
+  "Mangrove forest",
+  "Temperate rainforest",
+  "Boreal forest",
+  "Kelp forest",
+  "Saltmarsh",
+  "Coral reef",
+  "Tropical forest",
+  "Tallgrass prairie"
+)
+
+model_outputs_clean <- model_outputs_clean %>%
+  mutate(Ecosystem = factor(Ecosystem, levels = ecosystem_order)) %>%
+  arrange(Ecosystem)
+
+
+# Create flextable
+flextable_outputs <- flextable(model_outputs_clean) %>%
+  set_header_labels(
+    estimate = "Estimate",
+    conf.low = "95% CI (Low)",
+    conf.high = "95% CI (High)",
+    p.value = "p-value"
+  ) %>%
+  fontsize(size = 11, part = "all") %>%
+  font(fontname = "Times New Roman", part = "all") %>%
+  bold(part = "header") %>%
+  align(part = "header", align = "center") %>%
+  autofit() %>%
+  border_remove() %>%
+  border_outer() %>%
+  border_inner_h()
+
+# View the table
+flextable_outputs
+
+# Optional: Save to Word
+save_as_docx(flextable_outputs, path = "model_outputs_table.docx")
+
+# Optional: Save to PDF (requires Chrome + pagedown)
+# install.packages("pagedown")
+# pagedown::chrome_print("model_outputs_table.html")
