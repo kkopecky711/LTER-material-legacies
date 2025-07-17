@@ -3,28 +3,28 @@
 library(tidyverse)
 
 # Working directory
-setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis')
+setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis/Datasets/Effect sizes')
 
 # Read in effect size datafiles
-mcr_effect <- read_csv("Datasets/Effect sizes/Standardized/mcr_effect.z.csv")
+mcr_effect <- read_csv("Standardized/mcr_effect.z.csv")
 
-bnz_effect <- read_csv("Datasets/Effect sizes/Standardized/bnz_effect.z.csv")
+bnz_effect <- read_csv("Standardized/bnz_effect.z.csv")
 
-vcr_effect <- read_csv("Datasets/Effect sizes/Standardized/vcr_effect.z.csv")
+vcr_effect <- read_csv("Standardized/vcr_effect.z.csv")
 
-gce_effect <- read_csv("Datasets/Effect sizes/Standardized/gce_effect.z.csv")
+gce_effect <- read_csv("Standardized/gce_effect.z.csv")
 
-luq_effect <- read_csv("Datasets/Effect sizes/Standardized/luq_effect.z.csv")
+luq_effect <- read_csv("Standardized/luq_effect.z.csv")
 
-fce_effect <- read_csv("Datasets/Effect sizes/Standardized/fce_effect.z.csv")
+fce_effect <- read_csv("Standardized/fce_effect.z.csv")
 
-songs_effect <- read_csv("Datasets/Effect sizes/Standardized/songs_effect.z.csv")
+songs_effect <- read_csv("Standardized/songs_effect.z.csv")
 
-hfr_effect <- read_csv("Datasets/Effect sizes/Standardized/hfr_effect.z.csv")
+hfr_effect <- read_csv("Standardized/hfr_effect.z.csv")
 
-knz_effect <- read_csv("Datasets/Effect sizes/Standardized/knz_effect.z.csv")
+knz_effect <- read_csv("Standardized/knz_effect.z.csv")
 
-hja_effect <- read_csv("Datasets/Effect sizes/Standardized/hja_effect.z.csv")
+hja_effect <- read_csv("Standardized/hja_effect.z.csv")
 
 
 # Combine into one dataframe, filter out unneeded values, add ecosystem names
