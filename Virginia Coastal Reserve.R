@@ -93,19 +93,18 @@ res.z <- simulateResiduals(oyster_glmm.z)
 plot(res.z) # Tests are non-significant
 
 ## Visualization
-preds_z <- ggpredict(
+preds.z <- ggpredict(
   oyster_glmm.z,
   terms = "dead_density_z")
 
 # Plot predicted values with 95% confidence intervals
-ggplot(preds_z, aes(x = x, y = predicted)) +
-  geom_line(size = 1.2) +
-  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
-              alpha = 0.3,
-              fill = "#3B4F8E") +
-  geom_point(data = vcr.juv_dead, aes(x = dead_density_z, y = juv_density_z),
+ggplot(preds.z, aes(x = x, y = predicted)) +
+  geom_point(data = vcr.juv_dead.summary, aes(x = dead_density_z, y = juv_density_z),
              alpha = 0.6,
-             size = 2) +
+             color = "darkgrey") +
+  geom_line(linewidth = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3) +
   labs(
     x = "Dead oyster density (Z-score)",
     y = "Juvenile oyster density (Z-score)"

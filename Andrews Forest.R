@@ -93,6 +93,27 @@ summary(tree_glmm.z)
 res.z <- simulateResiduals(tree_glmm.z)
 plot(res.z) # Tests are non-significant
 
+## Visualization
+# Generate datatable of model predictions
+preds.z <- ggpredict(tree_glmm.z, terms = "dw_mass_ha.z")
+
+# Plot predicted values with 95% confidence intervals and raw values
+ggplot() +
+  geom_point(data = live_dead.growth, 
+             aes(x = dw_mass_ha.z, y = tree_growth_ind.z),
+             alpha = 0.6,
+             color = "darkgrey") +
+  geom_line(data = preds.z, 
+            aes(x = x, y = predicted),
+            linewidth = 1.2) +
+  geom_ribbon(data = preds.z,
+              aes(x = x, y = predicted, 
+                  ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3) +
+  labs(x = "Dead wood mass (Z-score)",
+       y = "Individual tree growth (Z-score)") +
+  theme_classic(base_size = 14)
+
 # Extract effect size and CI, write to .csv file
 hja_effect.z <- tidy(tree_glmm.z, effects = "fixed", conf.int = TRUE) %>% 
   filter(term == "dw_mass_ha.z")

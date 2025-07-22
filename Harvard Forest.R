@@ -1,6 +1,7 @@
 ## Harvard Forest LTER Hemlock removal experiment ##
 
 # Data include live and dead trees of different species and life stages
+# Code co-written by Audrey Barker-Plotkin and Kai Kopecky 
 
 # Packages
 library(tidyverse)
@@ -10,7 +11,6 @@ library(ggeffects)
 library(DHARMa)
 library(broom.mixed)
 
-library(tidyverse)
 setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis')
 
 # Dead wood sampled in 2005, 2007, 2009, 2011, 2013, 2015, 2017, 2021 (next 2025).
@@ -84,36 +84,36 @@ ggplot(gird_log.saps, aes(x = year, y = dens_ha_total, color = trt)) +
 gird_log.saps$trt <- relevel(gird_log.saps$trt, ref = "logged") 
 
 # Use Tweedie distribution with log-link
-hemlock_sap.glmm.tweedie <- glmmTMB(dens_ha_hemlock ~ trt + (1 | block/plot) + (1 | year),
+hemlock_glmm.raw <- glmmTMB(dens_ha_hemlock ~ trt + (1 | block/plot) + (1 | year),
                                     family = tweedie(link = "log"), 
                                     data = gird_log.saps)
-summary(hemlock_sap.glmm.tweedie)
+summary(hemlock_glmm.raw)
 
 # Zero-inflated model
-hemlock_sap.glmm.tweedie.zi <- glmmTMB(dens_ha_hemlock ~ trt + (1 | block/plot) + (1 | year),
+hemlock_glmm.raw.zi <- glmmTMB(dens_ha_hemlock ~ trt + (1 | block/plot) + (1 | year),
                                     family = tweedie(link = "log"),
                                     ziformula = ~1,
                                     data = gird_log.saps)
-summary(hemlock_sap.glmm.tweedie.zi)
+summary(hemlock_glmm.raw.zi)
 
 # Compare models to ensure zero-inflation improves model fit
-AIC(hemlock_sap.glmm.tweedie, hemlock_sap.glmm.tweedie.zi) # Zero-inflated model has lower AIC score
+AIC(hemlock_glmm.raw, hemlock_glmm.raw.zi) # Zero-inflated model has lower AIC score
 
 # Diagnostics
-sim <- simulateResiduals(hemlock_sap.glmm.tweedie.zi)
+sim <- simulateResiduals(hemlock_glmm.raw.zi)
 plot(sim)
 testZeroInflation(sim) 
 # Tests of residuals check out
 
 # To report effect size and CI in main text and table
-hfr_effect.raw <- tidy(hemlock_sap.glmm.tweedie.zi, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
+hfr_effect.raw <- tidy(hemlock_glmm.raw.zi, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
   filter(term == "trtgirdled")
 
 write_csv(hfr_effect.raw, "Datasets/Effect sizes/Raw/hfr_effect.raw.csv")
 
 ## Visualization
 # Get predicted values and CIs for each treatment
-preds <- ggpredict(hemlock_sap.glmm.tweedie.zi, terms = "trt")
+preds <- ggpredict(hemlock_glmm.raw.zi, terms = "trt")
 
 ggplot() +
   geom_jitter(data = gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock),
@@ -152,22 +152,47 @@ ggplot(gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock
 
 ## Z-score standardized model
 # Scale the response variable
-gird_log.saps$dens_z <- scale(gird_log.saps$dens_ha_hemlock)
+gird_log.saps$dens.z <- scale(gird_log.saps$dens_ha_hemlock)
 
 # Fit the zero-inflated model using the z-scored response, and gaussian distribution (Tweedie not needed with scaled response)
-hemlock_sap.glmm.z <- glmmTMB(
-  dens_z ~ trt + (1 | block/plot) + (1 | year),
+hemlock_glmm.z <- glmmTMB(
+  dens.z ~ trt + (1 | block/plot) + (1 | year),
   dispformula = ~ trt,  # Allow residual variance to differ by treatment to account for heteroscedasticity
   family = gaussian(),
   data = gird_log.saps
 )
-summary(hemlock_sap.glmm.z)
+summary(hemlock_glmm.z)
 
 # Diagnostics
-sim.z <- simulateResiduals(hemlock_sap.glmm.z)
-plot(sim.z) # Tests are non-significant
+res.z <- simulateResiduals(hemlock_glmm.z)
+plot(res.z) # Tests are non-significant
 
-# Extract effect size and 95% CI using broom.mixed
+
+## Visualization
+# Get predicted values and CIs for each treatment
+preds.z <- ggpredict(hemlock_glmm.z, terms = "trt")
+
+ggplot() +
+  geom_jitter(data = gird_log.saps, 
+              aes(x = reorder(trt, dens.z), y = dens.z),
+              color = "darkgrey",
+              width = 0.15, 
+              alpha = 0.6) +
+  geom_point(data = preds.z, 
+                  aes(x = x, y = predicted),
+                  size = 3) +
+  geom_errorbar(data = preds.z, 
+                aes(x = x, y = predicted, ymin = conf.low, ymax = conf.high),
+                width = 0) +
+  geom_line(data = preds.z, 
+            aes(x = x, y = predicted, group = group)) +
+  scale_x_discrete(labels = c("girdled" = "Standing", "logged" = "Removed")) +
+  labs(x = "Dead hemlock status",
+       y = "Sapling density (Z-score)") +
+  theme_classic(base_size = 14)
+
+
+## Extract effect size and 95% CI using broom.mixed
 hfr_effect.z <- tidy(hemlock_sap.glmm.z, effects = "fixed", conf.int = TRUE) %>%
   filter(term == "trtgirdled")
 

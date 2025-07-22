@@ -22,7 +22,7 @@ litterfall.post_irma <- litterfall %>%
   group_by(sitename, plot_id, basket_id) %>% 
   summarize(total_weight = sum(total_weight)) # Sum up weight of litter accumulated over time in each basket
 
-litterfall.summary <- litterfall.post_hurr %>% 
+litterfall.summary <- litterfall.post_irma %>% 
   group_by(sitename, plot_id) %>% 
   summarize(mean_litter = mean(total_weight), # Average the amount of litter accumulated within each plot
             se_litter = sd(total_weight)/sqrt(n()))
@@ -73,6 +73,7 @@ fce_effect.raw <- tidy(root_glmm.raw, effects = "fixed", conf.int = TRUE, conf.l
 
 write_csv(fce_effect.raw, "Datasets/Effect sizes/Raw/fce_effect.raw.csv")
 
+## Visualization
 # Get model predictions and confidence intervals
 preds <- ggpredict(root_glmm.raw, terms = "mean_litter")
 
@@ -95,16 +96,16 @@ ggplot() +
 
 ## Standardized model
 # Scale both predictor and response to their z-scores
-root_prod.scaled <- root_prod.litter %>%
+root_prod.litter <- root_prod.litter %>%
   mutate(
-    root_z = scale(root_prod.mean)[,1],
-    litter_z = scale(mean_litter)[,1]
+    root.z = scale(root_prod.mean)[,1],
+    litter.z = scale(mean_litter)[,1]
   )
 
 # Model relationship with same structure
 root_glmm.z <- glmmTMB(
-  root_z ~ litter_z + (1 | sitename),
-  data = root_prod.scaled,
+  root.z ~ litter.z + (1 | sitename),
+  data = root_prod.litter,
   family = gaussian()
 )
 summary(root_glmm.z)
@@ -112,6 +113,28 @@ summary(root_glmm.z)
 # Diagnostics
 res.z <- simulateResiduals(root_glmm.z)
 plot(res.z) # Tests are non-significant
+
+
+## Visualization
+# Get model predictions and confidence intervals
+preds.z <- ggpredict(root_glmm.z, terms = "litter.z")
+
+# Plot
+ggplot() +
+  geom_point(data = root_prod.litter, 
+             aes(x = litter.z, y = root.z), 
+             color = "darkgrey",
+             alpha = 0.6) +
+  geom_ribbon(data = preds.z, 
+              aes(x = x, ymin = conf.low, ymax = conf.high), 
+              alpha = 0.2) +
+  geom_line(data = preds.z, 
+            aes(x = x, y = predicted),
+            linewidth = 1.2) +
+  labs(
+    x = "Mean litterfall (Z-score)",
+    y = "Mean root production (Z-score)") +
+  theme_classic(base_size = 14)
 
 # Extract effect size and CI, write to .csv file
 fce_effect.z <- tidy(root_glmm.z, effects = "fixed", conf.int = TRUE) %>% 

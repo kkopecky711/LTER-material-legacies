@@ -83,16 +83,37 @@ ggplot() +
 gce.biomass_dist_z <- gce.biomass_dist.summary %>%
   mutate(biomass_z = scale(biomass.mean)[, 1])
 
-marsh_model.z <- glmmTMB(
+marsh_glmm.z <- glmmTMB(
   biomass_z ~ plot_disturbance + (1 | site) + (1 | year),
   data = gce.biomass_dist_z,
   family = gaussian()
 )
-summary(marsh_model.z)
+summary(marsh_glmm.z)
 
 # Diagnostics
-res.z <- simulateResiduals(marsh_model.z)
+res.z <- simulateResiduals(marsh_glmm.z)
 plot(res.z) # Tests are non-significant
+
+## Visualization
+preds.z <- ggpredict(marsh_glmm.z, terms = "plot_disturbance")
+
+ggplot() +
+  geom_jitter(data = gce.biomass_dist_z,
+              aes(x = plot_disturbance, y = biomass_z),
+              width = 0.15, 
+              alpha = 0.6,
+              color = "darkgrey") +
+  geom_point(data = preds.z,
+             aes(x = x, y = predicted),
+             size = 3) +
+  geom_errorbar(data = preds.z,
+                aes(x = x, ymin = conf.low, ymax = conf.high),
+                width = 0) +
+  geom_line(data = preds.z,
+            aes(x = x, y = predicted, group = group)) +
+  labs(x = "Marshwrack disturbance",
+       y = "Marshgrass biomass (Z-score)") +
+  theme_classic(base_size = 14)
 
 ## Extract effect size
 gce_effect.z <- tidy(marsh_model.z, effects = "fixed", conf.int = TRUE) %>% 

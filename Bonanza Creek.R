@@ -66,16 +66,16 @@ ggplot(preds, aes(x = x, y = predicted)) +
   theme_classic(base_size = 14)
 
 ## Standardized model ----
-seeds_z <- seeds %>%
+seeds <- seeds %>%
   mutate(
-    bs_stg_ba_z = scale(bs_stg_ba)[, 1],
-    total_m2_z = scale(total_m2)[, 1]
+    bs_stg_ba.z = scale(bs_stg_ba)[, 1],
+    total_m2.z = scale(total_m2)[, 1]
   )
 
 seed_glmm.z <- glmmTMB(
-  total_m2_z ~ bs_stg_ba_z + (1 | burn/site),
+  total_m2.z ~ bs_stg_ba.z + (1 | burn/site),
   family = gaussian(),
-  data = seeds_z
+  data = seeds
 )
 summary(seed_glmm.z)
 
@@ -83,21 +83,26 @@ summary(seed_glmm.z)
 res.z <- simulateResiduals(seed_glmm.z)
 plot(res.z) # Tests show moderate deviation; attempts to modify model structure did not improve diagnostics; proceeding with caution when interpreting model output
 
-# Visualization
-preds_z <- ggpredict(seed_glmm.z, terms = "bs_stg_ba_z")
+## Visualization
+# Generate predicted values
+preds.z <- ggpredict(seed_glmm.z, terms = "bs_stg_ba.z")
 
-ggplot() +
-  geom_point(data = seeds_z, aes(x = bs_stg_ba_z, y = total_m2_z), alpha = 0.6, size = 2) +
-  geom_line(data = preds_z, aes(x = x, y = predicted), color = "black", size = 1.2) +
-  geom_ribbon(data = preds_z, aes(x = x, ymin = conf.low, ymax = conf.high),
-              fill = "#3366AA", alpha = 0.3) +
-  labs(
-    x = "Burned stem basal area (Z-score)",
-    y = "Seed density (Z-score)"
-  ) +
+# Plot predictions with 95% CI and raw values
+ggplot(preds.z, aes(x = x, y = predicted)) +
+  geom_point(data = seeds,
+             aes(x = bs_stg_ba.z,
+                 y = total_m2.z),
+             alpha = 0.6,
+             color = "darkgrey") +
+  geom_line(linewidth = 1.2) + 
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3) +
+  labs(x = "Burned stem basal area (Z-score)",
+    y = "Seed density (Z-score)") +
   theme_classic(base_size = 14)
 
-# Effect size
+
+## Effect size
 bnz_effect.z <- tidy(seed_glmm.z, effects = "fixed", conf.int = TRUE) %>%
   filter(term == "bs_stg_ba_z")
 

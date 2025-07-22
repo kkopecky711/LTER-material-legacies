@@ -110,18 +110,26 @@ plot(res.z) # Tests are non-significant
 lessthan10_preds.z <- ggpredict(seedling_glmm.z, terms = "treatment")
 
 # Plot
-ggplot(lessthan10_preds.z, aes(x = x, y = predicted)) +
+ggplot() +
   geom_jitter(data = seedling_lessthan10,
               aes(x = treatment, y = seedlings.z),
-              width = 0.1, 
-              height = 0,
-              alpha = 0.4) +
-  geom_point(size = 3) +
-  geom_errorbar(aes(ymin = conf.low, ymax = conf.high), 
+              color = "darkgrey", 
+              alpha = 0.6, 
+              width = 0.15) +
+  geom_point(data = lessthan10_preds.z, 
+             aes(x = x, y = predicted),
+             size = 3) +
+  geom_errorbar(data = lessthan10_preds.z, 
+                aes(x = x, y = predicted, 
+                    ymin = conf.low, ymax = conf.high), 
                 width = 0) +
-  labs(x = "Litterfall Treatment",
-       y = "Seedlings < 10cm (Z-score)") +
+  geom_line(data = lessthan10_preds.z, 
+            aes(x = x, y = predicted,
+                group = group)) +
+  labs(x = "Litterfall treatment",
+       y = "Seedling counts (< 10cm) (Z-score)") +
   theme_classic(base_size = 14)
+
 
 ## Effect size
 luq_effect.z <- tidy(seedling_glmm.z, effects = "fixed", conf.int = TRUE) %>%
