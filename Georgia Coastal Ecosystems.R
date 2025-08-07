@@ -64,18 +64,24 @@ ggplot() +
   geom_jitter(data = gce.biomass_dist.summary,
               aes(x = plot_disturbance, y = biomass.mean),
               width = 0.15, 
-              alpha = 0.6,
-              color = "darkgrey") +
-  geom_point(data = preds,
-             aes(x = x, y = predicted),
-             size = 3) +
+              alpha = 0.4,
+              color = "#20618D") +
+  geom_line(data = preds,
+            aes(x = x, y = predicted, group = group),
+            color = "black") +
   geom_errorbar(data = preds,
                 aes(x = x, ymin = conf.low, ymax = conf.high),
                 width = 0) +
-  geom_line(data = preds,
-            aes(x = x, y = predicted, group = group)) +
-  labs(x = "Marshwrack disturbance",
-    y = expression("Marshgrass biomass (g/m"^2*"/yr)")) +
+  geom_point(data = preds,
+             aes(x = x, y = predicted),
+             size = 4,
+             color = "black") +
+  geom_point(data = preds,
+             aes(x = x, y = predicted),
+             size = 3,
+             color = "#20618D") +
+  labs(x = "Marsh wrack disturbance",
+    y = expression("Marsh grass biomass (g/m"^2*"/yr)")) +
   theme_classic(base_size = 14)
 
 ## Z-score standardization

@@ -39,8 +39,8 @@ seedling_lessthan10 <- luq.seedlings %>%
          year %in% c(2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013)) %>% 
   group_by(treatment, year, block, plot) %>% 
   summarize(seedling.count = sum(lessthan10cm)) %>% 
-  mutate(treatment = case_when(treatment == "Trim&clear" ~"Litter removed", 
-                               TRUE ~ "Litter added"),
+  mutate(treatment = case_when(treatment == "Trim&clear" ~"Removed", 
+                               TRUE ~ "Added"),
          treatment = factor(treatment),
          block = factor(block),
          plot = factor(plot),
@@ -73,20 +73,25 @@ lessthan10_preds <- ggpredict(seedling_glmm.raw, terms = "treatment")
 ggplot() +
   geom_jitter(data = seedling_lessthan10,
               aes(x = treatment, y = seedling.count),
-              color = "darkgrey", 
+              color = "#6B6C58", 
               alpha = 0.6, 
               width = 0.15) +
-  geom_point(data = lessthan10_preds, 
-             aes(x = x, y = predicted),
-             size = 3) +
+  geom_line(data = lessthan10_preds, 
+            aes(x = x, y = predicted,
+                group = group)) +
   geom_errorbar(data = lessthan10_preds, 
                 aes(x = x, y = predicted, 
                     ymin = conf.low, ymax = conf.high), 
                 width = 0) +
-  geom_line(data = lessthan10_preds, 
-            aes(x = x, y = predicted,
-                group = group)) +
-  labs(x = "Litterfall treatment",
+  geom_point(data = lessthan10_preds, 
+             aes(x = x, y = predicted),
+             size = 4,
+             color = "black") +
+  geom_point(data = lessthan10_preds, 
+             aes(x = x, y = predicted),
+             size = 3,
+             color = "#6B6C58") +
+  labs(x = "Canopy debris",
        y = "Seedling (< 10cm) counts/yr") +
   theme_classic(base_size = 14)
 

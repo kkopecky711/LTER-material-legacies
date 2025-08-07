@@ -52,21 +52,23 @@ write_csv(songs_effect.raw, "Datasets/Effect sizes/Raw/songs_effect.raw.csv")
 
 ## Visualization
 # Get model predictions
-preds <- ggpredict(kelp_glmm.raw, terms = "dmaho_percent_cover")
+preds <- ggpredict(kelp_glmm.raw, 
+                   terms = "dmaho_percent_cover")
 
 # Plot predictions + raw data
 ggplot() +
   geom_jitter(data = songs.no_zeroes, 
              aes(x = dmaho_percent_cover, y = mapy_count_per_unit_area), 
-             color = "darkgrey", 
+             color = "#20618D", 
              alpha = 0.6, 
-             width = 0.15) +
+             width = 0.25) +
   geom_line(data = preds, 
             aes(x = x, y = predicted), 
-            linewidth = 1.2) +
+            linewidth = 0.75) +
   geom_ribbon(data = preds, 
               aes(x = x, ymin = conf.low, ymax = conf.high), 
-              alpha = 0.3) +
+              alpha = 0.3,
+              fill = "#20618D") +
   labs(x = "% cover of dead holdfasts",
        y = Juvenile~kelp~density~(count/m^2/yr)) +
   theme_classic(base_size = 14)

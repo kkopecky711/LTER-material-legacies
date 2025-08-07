@@ -100,17 +100,18 @@ ggplot() +
   geom_point(data = coral_change_filtered, 
              aes(x = dead_coral_start, 
                  y = live_coral_change_pct),
-             color = "darkgrey", 
+             color = "#20618D", 
              alpha = 0.6) +
   geom_ribbon(data = preds, 
               aes(x = x, 
                   ymin = conf.low, 
                   ymax = conf.high), 
-              alpha = 0.2) +
+              alpha = 0.2,
+              fill = "#20618D") +
   geom_line(data = preds, 
             aes(x = x, 
                 y = predicted), 
-            linewidth = 1.2) +
+            linewidth = 0.75) +
   labs(
     x = Dead~coral~cover~(m^2),
     y = "Change in live coral (% surf. area/yr)") +

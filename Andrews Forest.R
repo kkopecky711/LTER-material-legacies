@@ -64,16 +64,17 @@ ggplot() +
   geom_point(data = live_dead.growth, 
              aes(x = dw_mass_ha, y = tree_growth_ind),
              alpha = 0.6,
-             color = "darkgrey") +
+             color = "#6B6C58") +
   geom_line(data = preds, 
             aes(x = x, y = predicted),
-            linewidth = 1.2) +
+            linewidth = 0.75) +
   geom_ribbon(data = preds,
               aes(x = x, y = predicted, 
                   ymin = conf.low, ymax = conf.high), 
-              alpha = 0.3) +
+              alpha = 0.3,
+              fill = "#6B6C58") +
   labs(x = "Dead wood mass (kg/ha)",
-       y = "Individual tree growth (m²/yr)") +
+       y = "Tree growth (m²/yr/ind.)") +
   theme_classic(base_size = 14)
 
 ## Standardized model

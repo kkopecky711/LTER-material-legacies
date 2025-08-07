@@ -13,7 +13,7 @@ setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER mate
 
 vcr.raw <- read_csv("Datasets/Virginia Coastal Reserve/Oyster_Count_Data_2022_03_10.csv")
 
-# Filter original data for just live and dead oysters, create column for season
+# Filter original data for just live and dead oysters
 vcr.juv_dead <- vcr.raw %>% 
   clean_names() %>%
   filter(species == "Box Adult Oyster" | species == "Spat Oyster",
@@ -32,8 +32,8 @@ vcr.juv_dead <- vcr.raw %>%
 vcr.juv_dead.summary <- vcr.juv_dead %>% 
   group_by(year, site) %>% 
   summarize(dead.mean = mean(Dead), 
-            juv.mean = mean(Juvenile)) %>% 
-  filter(dead.mean < 250)
+            juv.mean = mean(Juvenile)) #%>% 
+  #filter(dead.mean < 250) # Need to verify it's ok to remove this outlier
 
 ## Analysis
 # GLMM of mean annual juvenile density ~ mean dead density
@@ -46,7 +46,7 @@ summary(oyster_glmm.raw)
 
 # Diagnostics
 res <- simulateResiduals(oyster_glmm.raw)
-plot(res) # KS test non-significant; residual vs predicted test signnificant, but attempts to improve were not successful; proceeding with caution
+plot(res) # KS test non-significant; residual vs predicted test significant, but attempts to improve were not successful; proceeding with caution
 
 # To report effect size and CI in main text and table
 vcr_effect.raw <- tidy(oyster_glmm.raw, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
@@ -65,10 +65,11 @@ preds <- ggpredict(
 ggplot(preds, aes(x = x*4, y = predicted*4)) +
   geom_point(data = vcr.juv_dead.summary, aes(x = dead.mean*4, y = juv.mean*4),
              alpha = 0.6,
-             color = "darkgrey") +
-  geom_line(linewidth = 1.2) +
+             color = "#20618D") +
+  geom_line(linewidth = 0.75) +
   geom_ribbon(aes(ymin = conf.low*4, ymax = conf.high*4), 
-              alpha = 0.3) +
+              alpha = 0.3,
+              fill = "#20618D") +
   labs(
     x = "Dead oyster density (no./m²)",
     y = "Juvenile oyster density (no./m²/yr)"

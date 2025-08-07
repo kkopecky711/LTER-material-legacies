@@ -117,33 +117,38 @@ preds <- ggpredict(hemlock_glmm.raw.zi, terms = "trt")
 
 ggplot() +
   geom_jitter(data = gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock),
-              color = "darkgrey",
+              color = "#6B6C58",
               width = 0.15, 
               alpha = 0.6) +
+  geom_line(data = preds, 
+            aes(x = x, y = predicted, group = group)) +
   geom_errorbar(
     data = preds,
     aes(x = x, ymin = conf.low, ymax = conf.high),
     width = 0) +
   geom_point(data = preds,
              aes(x = x, y = predicted),
-             size = 3) +
-  geom_line(data = preds, 
-            aes(x = x, y = predicted, group = group)) +
+             size = 3,
+             color = "black") +
+  geom_point(data = preds,
+             aes(x = x, y = predicted),
+             size = 3,
+             color = "#6B6C58") +
   labs(x = "Dead hemlock status") +
   theme_classic(base_size = 14)
 
 # Log-transformed for visual purposes
 ggplot(gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock + 1)) +
-  geom_jitter(color = "darkgrey",
+  geom_jitter(color = "#6B6C58",
               width = 0.15, 
               alpha = 0.6) +
+  geom_line(data = preds, aes(x = x, y = predicted + 1, group = group)) +
   geom_pointrange(data = preds, aes(x = x, y = predicted + 1, ymin = conf.low + 1, ymax = conf.high + 1),
                   inherit.aes = FALSE,
                   size = 0.75, 
                   color = "black", 
-                  fill = "black", 
+                  fill = "#6B6C58", 
                   shape = 21) +
-  geom_line(data = preds, aes(x = x, y = predicted + 1, group = group)) +
   scale_x_discrete(labels = c("girdled" = "Standing", "logged" = "Removed")) +
   scale_y_continuous(trans = "log10",
                      name = expression("Sapling density (no./ha/yr, log"[10]*"+1)")) +
