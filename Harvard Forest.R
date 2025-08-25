@@ -151,7 +151,7 @@ ggplot(gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock
                   shape = 21) +
   scale_x_discrete(labels = c("girdled" = "Standing", "logged" = "Removed")) +
   scale_y_continuous(trans = "log10",
-                     name = expression("Sapling density (no./ha/yr, log"[10]*"+1)")) +
+                     name = expression("Hemlock sapling density (no./ha/yr, log"[10]*")")) +
   labs(x = "Dead hemlock status") +
   theme_classic(base_size = 14)
 
@@ -192,6 +192,7 @@ ggplot() +
   geom_line(data = preds.z, 
             aes(x = x, y = predicted, group = group)) +
   scale_x_discrete(labels = c("girdled" = "Standing", "logged" = "Removed")) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
   labs(x = "Dead hemlock status",
        y = "Sapling density (Z-score)") +
   theme_classic(base_size = 14)

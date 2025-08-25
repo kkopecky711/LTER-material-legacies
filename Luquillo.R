@@ -91,8 +91,8 @@ ggplot() +
              aes(x = x, y = predicted),
              size = 3,
              color = "#6B6C58") +
-  labs(x = "Canopy debris",
-       y = "Seedling (< 10cm) counts/yr") +
+  labs(x = "Canopy detritus",
+       y = "Tree seedling counts (no./yr)") +
   theme_classic(base_size = 14)
 
 ## Z-score < 10cm seedling model
@@ -131,8 +131,9 @@ ggplot() +
   geom_line(data = lessthan10_preds.z, 
             aes(x = x, y = predicted,
                 group = group)) +
-  labs(x = "Litterfall treatment",
-       y = "Seedling counts (< 10cm) (Z-score)") +
+  scale_y_continuous(limits = c(-2, 3.4)) +
+  labs(x = "Canopy detritus",
+       y = "Seedling counts, < 10cm (Z-score)") +
   theme_classic(base_size = 14)
 
 

@@ -46,10 +46,6 @@ data_sources.table <- flextable(data_sources) %>%
 
 data_sources.table
 
-# Export as PDF
-flextable::save_as_pdf(data_sources.table, path = "data_sources_table.pdf")
-
-
 #### Table S2: GLMM structures and outputs ----
 library(tidyverse)
 library(gt)
@@ -170,7 +166,7 @@ save_as_docx(flextable_outputs, path = "model_outputs_table.docx")
 # install.packages("pagedown")
 # pagedown::chrome_print("model_outputs_table.html")
 
-#### Table S4: Outputs frm standardized models ----
+#### Table S4: Outputs from standardized models ----
 library(tidyverse)
 library(flextable)
 

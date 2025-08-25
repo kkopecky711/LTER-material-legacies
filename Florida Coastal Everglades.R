@@ -91,8 +91,8 @@ ggplot() +
             aes(x = x, y = predicted),
             linewidth = 0.75) +
   labs(
-    x = "Mean litterfall (g)",
-    y = "Mean root production (g/m²/yr)") +
+    x = "Mangrove litterfall (g)",
+    y = "Mangrove root production (g/m²/yr)") +
   theme_classic(base_size = 14)
 
 ## Standardized model
@@ -132,6 +132,7 @@ ggplot() +
   geom_line(data = preds.z, 
             aes(x = x, y = predicted),
             linewidth = 1.2) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
   labs(
     x = "Mean litterfall (Z-score)",
     y = "Mean root production (Z-score)") +

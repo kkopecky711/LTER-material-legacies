@@ -109,7 +109,7 @@ ggplot() +
     aes(x = x, y = predicted*10),
     size = 3,
     color = "#6B6C58") +
-  labs(x = "Burn Category",
+  labs(x = "Grass litter",
     y = "Live grass biomass (g/m²/yr)") +
   theme_classic(base_size = 14)
 
@@ -120,7 +120,6 @@ knz_effect.raw <- tidy(grass_glmm_tw, effects = "fixed", conf.int = TRUE, conf.l
 write_csv(knz_effect.raw, "Datasets/Effect sizes/Raw/knz_effect.raw.csv")
 
 ## Z-score standardized model
-
 # Scale response only to its Z-score
 knz.merged <- knz.merged %>%
   mutate(
@@ -159,6 +158,7 @@ ggplot() +
     width = 0) +
   geom_line(data = preds.z,
             aes(x = x, y = predicted, group = group)) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
   labs(x = "Burn Category",
        y = "Live grass biomass (Z-score)") +
   theme_classic(base_size = 14)

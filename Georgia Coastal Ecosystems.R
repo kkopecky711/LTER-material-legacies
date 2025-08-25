@@ -31,14 +31,6 @@ gce.biomass_dist.summary <- gce.biomass_dist %>%
             #biomass.se = sd(total_plant_biomass_m2)/sqrt(n()))
   ungroup()
 
-# Exploratory graph
-ggplot(gce.biomass_dist.summary, aes(x = plot_disturbance, y = biomass.mean)) +
-  geom_col() +
-  geom_errorbar(aes(ymax = biomass.mean + biomass.se,
-                    ymin = biomass.mean - biomass.se),
-                width = 0) +
-  theme_classic()
-
 ## Analysis
 marsh_glmm.raw <- glmmTMB(
   biomass.mean ~ plot_disturbance + (1 | site) + (1 | year),
@@ -80,8 +72,8 @@ ggplot() +
              aes(x = x, y = predicted),
              size = 3,
              color = "#20618D") +
-  labs(x = "Marsh wrack disturbance",
-    y = expression("Marsh grass biomass (g/m"^2*"/yr)")) +
+  labs(x = "Wrack disturbance",
+    y = expression("Salt marsh grass biomass (g/m"^2*"/yr)")) +
   theme_classic(base_size = 14)
 
 ## Z-score standardization
@@ -117,8 +109,9 @@ ggplot() +
                 width = 0) +
   geom_line(data = preds.z,
             aes(x = x, y = predicted, group = group)) +
-  labs(x = "Marshwrack disturbance",
-       y = "Marshgrass biomass (Z-score)") +
+  scale_y_continuous(limits = c(-2, 3.4)) +
+  labs(x = "Wrack disturbance",
+       y = "Salt marsh grass biomass (Z-score)") +
   theme_classic(base_size = 14)
 
 ## Extract effect size

@@ -86,6 +86,7 @@ summary(coral_glmm.raw)
 res <- simulateResiduals(coral_glmm.raw)
 plot(res) # Tests are non-significant
 
+# Extract raw effect size
 mcr_effect.raw <- tidy(coral_glmm.raw, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
   filter(term == "dead_coral_start")
 
@@ -156,6 +157,7 @@ ggplot() +
             aes(x = x, 
                 y = predicted), 
             linewidth = 1.2) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
   labs(x = "Dead coral cover (Z-score)",
     y = "Change in live coral (Z-score)") +
   theme_classic(base_size = 14)

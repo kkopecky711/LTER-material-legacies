@@ -13,7 +13,7 @@ world <- ne_countries(scale = "large", returnclass = "sf")
 
 # LTER site data with 3-letter codes
 lter_sites <- data.frame(
-  site = c("MCR", "SONGS", "BNZ", "KNZ", "HFR", "VCR", "GCE", "FCE", "LUQ", "HJA"),
+  site = c("MCR", "SONGS", "BNZ", "KNZ", "HFR", "VCR", "GCE", "FCE", "LUQ", "AND"),
   lon = c(
     -149.8260, -117.3745, -147.8839, -96.5610, -72.1760,
     -75.6850, -81.2889, -80.6800, -65.8201, -122.1762

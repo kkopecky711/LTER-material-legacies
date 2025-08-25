@@ -60,8 +60,8 @@ ggplot(preds, aes(x = x, y = predicted)) +
               alpha = 0.3,
               fill = "#6B6C58") +
   labs(
-    x = "Burned stem basal area (m²)",
-    y = expression("Seed density (no./m"^2*", log"[10]*")")
+    x = "Burned tree basal area (m²)",
+    y = expression("Black spruce seed density (no./m"^2*", log"[10]*")")
   ) + 
   scale_y_continuous(trans = "log10") + 
   theme_classic(base_size = 14)
@@ -98,6 +98,7 @@ ggplot(preds.z, aes(x = x, y = predicted)) +
   geom_line(linewidth = 1.2) + 
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
               alpha = 0.3) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
   labs(x = "Burned stem basal area (Z-score)",
     y = "Seed density (Z-score)") +
   theme_classic(base_size = 14)

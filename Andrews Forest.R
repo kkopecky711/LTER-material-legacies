@@ -74,7 +74,7 @@ ggplot() +
               alpha = 0.3,
               fill = "#6B6C58") +
   labs(x = "Dead wood mass (kg/ha)",
-       y = "Tree growth (m²/yr/ind.)") +
+       y = "Tree growth (Douglas fir; m²/ind./yr)") +
   theme_classic(base_size = 14)
 
 ## Standardized model
@@ -111,6 +111,7 @@ ggplot() +
               aes(x = x, y = predicted, 
                   ymin = conf.low, ymax = conf.high), 
               alpha = 0.3) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
   labs(x = "Dead wood mass (Z-score)",
        y = "Individual tree growth (Z-score)") +
   theme_classic(base_size = 14)

@@ -110,6 +110,7 @@ ggplot(preds.z, aes(x = x, y = predicted)) +
     x = "Dead oyster density (Z-score)",
     y = "Juvenile oyster density (Z-score)"
   ) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
   theme_classic(base_size = 14)
 
 # Extract effect size
