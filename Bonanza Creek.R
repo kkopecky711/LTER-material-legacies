@@ -110,3 +110,46 @@ bnz_effect.z <- tidy(seed_glmm.z, effects = "fixed", conf.int = TRUE) %>%
 
 write_csv(bnz_effect.z, "Datasets/Effect sizes/Standardized/bnz_effect.z.csv")
 
+## Two-SD approach (predictor scaled by 2*SD; response scaled to 1 SD) ----
+seeds <- seeds %>%
+  mutate(
+    bs_stg_ba.2sd = (bs_stg_ba - mean(bs_stg_ba, na.rm = TRUE)) / (2 * sd(bs_stg_ba, na.rm = TRUE)),
+    total_m2.z    = scale(total_m2)[, 1]
+  )
+
+seed_glmm.hybrid <- glmmTMB(
+  total_m2.z ~ bs_stg_ba.2sd + (1 | burn/site),
+  family = gaussian(),
+  data = seeds
+)
+summary(seed_glmm.hybrid)
+
+# Diagnostics
+res.hybrid <- simulateResiduals(seed_glmm.hybrid)
+plot(res.hybrid) # Tests show moderate deviation; attempts to modify model structure did not improve diagnostics; proceeding with caution when interpreting model output
+
+## Visualization
+# Generate predicted values
+preds.hybrid <- ggpredict(seed_glmm.hybrid, terms = "bs_stg_ba.2sd")
+
+# Plot predictions with 95% CI and raw values
+ggplot(preds.hybrid, aes(x = x, y = predicted)) +
+  geom_point(data = seeds,
+             aes(x = bs_stg_ba.2sd,
+                 y = total_m2.z),
+             alpha = 0.6,
+             color = "darkgrey") +
+  geom_line(linewidth = 1.2) + 
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
+  labs(x = "Burned stem basal area (scaled by 2×SD; 1 unit = +2 SD)",
+       y = "Seed density (Z-score)") +
+  theme_classic(base_size = 14)
+
+## Effect size
+# (Coefficient = SDs of Y per +2 SD change in X)
+bnz_effect.hybrid <- tidy(seed_glmm.hybrid, effects = "fixed", conf.int = TRUE) %>%
+  filter(term == "bs_stg_ba.2sd")
+
+write_csv(bnz_effect.hybrid, "Datasets/Effect sizes/Standardized/bnz_effect.hybrid_2sdX_1sdY.csv")

@@ -144,3 +144,53 @@ fce_effect.z <- tidy(root_glmm.z, effects = "fixed", conf.int = TRUE) %>%
 
 write_csv(fce_effect.z, "Datasets/Effect sizes/Standardized/fce_effect.z.csv")
 
+
+## Two-SD approach (predictor scaled by 2*SD; response scaled to 1 SD) ----
+# Scale response to z-score and predictor to 2*SD
+root_prod.litter <- root_prod.litter %>%
+  mutate(
+    root.z     = scale(root_prod.mean)[, 1],
+    litter.2sd = (mean_litter - mean(mean_litter, na.rm = TRUE)) / (2 * sd(mean_litter, na.rm = TRUE))
+  )
+
+# Model relationship with same structure
+root_glmm.hybrid <- glmmTMB(
+  root.z ~ litter.2sd + (1 | sitename),
+  data = root_prod.litter,
+  family = gaussian()
+)
+summary(root_glmm.hybrid)
+
+# Diagnostics
+res.hybrid <- simulateResiduals(root_glmm.hybrid)
+plot(res.hybrid) # Tests are non-significant
+
+
+## Visualization
+# Get model predictions and confidence intervals
+preds.hybrid <- ggpredict(root_glmm.hybrid, terms = "litter.2sd")
+
+# Plot
+ggplot() +
+  geom_point(data = root_prod.litter, 
+             aes(x = litter.2sd, y = root.z), 
+             color = "darkgrey",
+             alpha = 0.6) +
+  geom_ribbon(data = preds.hybrid, 
+              aes(x = x, ymin = conf.low, ymax = conf.high), 
+              alpha = 0.2) +
+  geom_line(data = preds.hybrid, 
+            aes(x = x, y = predicted),
+            linewidth = 1.2) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
+  labs(
+    x = "Mean litterfall (scaled by 2×SD; 1 unit = +2 SD)",
+    y = "Mean root production (Z-score)") +
+  theme_classic(base_size = 14)
+
+# Extract effect size and CI, write to .csv file
+# (Coefficient = SDs of Y per +2 SD change in X)
+fce_effect.hybrid <- tidy(root_glmm.hybrid, effects = "fixed", conf.int = TRUE) %>% 
+  filter(term == "litter.2sd")
+
+write_csv(fce_effect.hybrid, "Datasets/Effect sizes/Standardized/fce_effect.hybrid_2sdX_1sdY.csv")

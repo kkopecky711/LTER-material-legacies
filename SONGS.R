@@ -149,3 +149,58 @@ songs_effect.z <- tidy(kelp_glmm.z, effects = "fixed", conf.int = TRUE, conf.lev
 
 write_csv(songs_effect.z, "Datasets/Effect sizes/Standardized/songs_effect.z.csv")
 
+
+## Two-SD approach (predictor scaled by 2*SD; response scaled to 1 SD) ----
+# Create 2*SD-scaled predictor (leave response unscaled for NB)
+songs.no_zeroes <- songs.no_zeroes %>%
+  mutate(
+    dmaho_cover.2sd = (dmaho_percent_cover - mean(dmaho_percent_cover, na.rm = TRUE)) /
+      (2 * sd(dmaho_percent_cover, na.rm = TRUE))
+  )
+
+# Negative binomial GLMM with log link; predictor in 2*SD units
+kelp_glmm.hybrid <- glmmTMB(
+  mapy_count_per_unit_area ~ dmaho_cover.2sd + (1 | reef_code/transect_option_code) + (1 | year),
+  data = songs.no_zeroes,
+  family = nbinom2(link = "log")
+)
+summary(kelp_glmm.hybrid)
+
+# Diagnostics
+res.hybrid <- simulateResiduals(kelp_glmm.hybrid)
+plot(res.hybrid) # Tests may still show issues; proceed cautiously as before
+
+## Visualization
+# Get predicted relationship (on response scale by default for ggpredict)
+preds.hybrid <- ggpredict(kelp_glmm.hybrid, terms = "dmaho_cover.2sd")
+
+# Plot predictions + raw data (use raw counts, not z-scores, for NB)
+ggplot() +
+  geom_jitter(data = songs.no_zeroes, 
+              aes(x = dmaho_cover.2sd, y = mapy_count_per_unit_area), 
+              color = "darkgrey", 
+              alpha = 0.6, 
+              width = 0.15) +
+  geom_line(data = preds.hybrid, 
+            aes(x = x, y = predicted), 
+            linewidth = 1.2) +
+  geom_ribbon(data = preds.hybrid, 
+              aes(x = x, ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3) +
+  labs(x = "Cover of dead holdfasts (scaled by 2×SD; 1 unit = +2 SD)",
+       y = expression(Juvenile~kelp~density~(count/m^2/yr))) +
+  theme_classic(base_size = 14)
+
+## Effect size (log-rate and rate ratio for a +2 SD change in X)
+songs_effect.hybrid <- tidy(kelp_glmm.hybrid, effects = "fixed", conf.int = TRUE, conf.level = 0.95) %>% 
+  filter(term == "dmaho_cover.2sd") #%>%
+  # mutate(
+  #   rate_ratio      = exp(estimate),
+  #   rr_conf.low     = exp(conf.low),
+  #   rr_conf.high    = exp(conf.high),
+  #   approach        = "NB log-link, 2·SD X (raw Y)",
+  #   interpretation  = "Rate ratio per +2 SD increase in dead holdfast cover"
+  # )
+
+write_csv(songs_effect.hybrid, "Datasets/Effect sizes/Standardized/songs_effect.hybrid_2sdX_NB.csv")
+

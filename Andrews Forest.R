@@ -121,3 +121,51 @@ hja_effect.z <- tidy(tree_glmm.z, effects = "fixed", conf.int = TRUE) %>%
   filter(term == "dw_mass_ha.z")
 
 write_csv(hja_effect.z, "Datasets/Effect sizes/Standardized/hja_effect.z.csv")
+
+## Two-SD approach (predictor scaled by 2*SD; response scaled to 1 SD) ----
+# Scale predictor by 2*SD and response to Z-score
+live_dead.growth <- live_dead.growth %>%
+  mutate(
+    dw_mass_ha.2sd    = (dw_mass_ha - mean(dw_mass_ha, na.rm = TRUE)) / (2 * sd(dw_mass_ha, na.rm = TRUE)),
+    tree_growth_ind.z = scale(tree_growth_ind)[, 1]
+  )
+
+tree_glmm.hybrid <- glmmTMB(
+  tree_growth_ind.z ~ dw_mass_ha.2sd + (1 | stand),
+  data = live_dead.growth,
+  family = gaussian()
+)
+summary(tree_glmm.hybrid)
+
+# Diagnostics
+res.hybrid <- simulateResiduals(tree_glmm.hybrid)
+plot(res.hybrid) # Tests should be comparable to your z–z model
+
+## Visualization
+# Generate datatable of model predictions
+preds.hybrid <- ggpredict(tree_glmm.hybrid, terms = "dw_mass_ha.2sd")
+
+# Plot predicted values with 95% confidence intervals and raw values
+ggplot() +
+  geom_point(data = live_dead.growth, 
+             aes(x = dw_mass_ha.2sd, y = tree_growth_ind.z),
+             alpha = 0.6,
+             color = "darkgrey") +
+  geom_line(data = preds.hybrid, 
+            aes(x = x, y = predicted),
+            linewidth = 1.2) +
+  geom_ribbon(data = preds.hybrid,
+              aes(x = x, y = predicted, 
+                  ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3) +
+  labs(x = "Dead wood mass (scaled by 2×SD; 1 unit = +2 SD)",
+       y = "Individual tree growth (Z-score)") +
+  theme_classic(base_size = 14)
+
+# Extract effect size and CI, write to .csv file
+# (Coefficient = SDs of Y per +2 SD change in X)
+hja_effect.hybrid <- tidy(tree_glmm.hybrid, effects = "fixed", conf.int = TRUE) %>% 
+  filter(term == "dw_mass_ha.2sd")
+
+write_csv(hja_effect.hybrid, "Datasets/Effect sizes/Standardized/hja_effect.hybrid_2sdX_1sdY.csv")
+

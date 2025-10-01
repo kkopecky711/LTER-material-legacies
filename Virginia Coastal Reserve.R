@@ -118,3 +118,54 @@ vcr_effect.z <- tidy(oyster_glmm.z, effects = "fixed", conf.int = TRUE) |>
   filter(term == "dead_density_z")
 
 write_csv(vcr_effect.z, "Datasets/Effect sizes/Standardized/vcr_effect.z.csv")
+
+
+## Two-SD approach (predictor scaled by 2*SD; response scaled to 1 SD) ----
+# Scale response to z-score and predictor to 2*SD
+vcr.juv_dead.summary <- vcr.juv_dead.summary %>%
+  mutate(
+    juv_density_z   = scale(juv.mean)[, 1],
+    dead_density.2sd = (dead.mean - mean(dead.mean, na.rm = TRUE)) / 
+      (2 * sd(dead.mean, na.rm = TRUE))
+  )
+
+# Fit model with 2*SD predictor and z-scored response
+oyster_glmm.hybrid <- glmmTMB(
+  juv_density_z ~ dead_density.2sd + (1 | site) + (1 | year),
+  family = gaussian(),
+  data = vcr.juv_dead.summary
+)
+summary(oyster_glmm.hybrid)
+
+# Diagnostics
+res.hybrid <- simulateResiduals(oyster_glmm.hybrid)
+plot(res.hybrid) # Tests are non-significant
+
+## Visualization
+preds.hybrid <- ggpredict(
+  oyster_glmm.hybrid,
+  terms = "dead_density.2sd")
+
+# Plot predicted values with 95% confidence intervals
+ggplot(preds.hybrid, aes(x = x, y = predicted)) +
+  geom_point(data = vcr.juv_dead.summary, 
+             aes(x = dead_density.2sd, y = juv_density_z),
+             alpha = 0.6,
+             color = "darkgrey") +
+  geom_line(linewidth = 1.2) +
+  geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
+              alpha = 0.3) +
+  labs(
+    x = "Dead oyster density (scaled by 2×SD; 1 unit = +2 SD)",
+    y = "Juvenile oyster density (Z-score)"
+  ) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
+  theme_classic(base_size = 14)
+
+# Extract effect size
+# (Coefficient = SDs of Y per +2 SD change in X)
+vcr_effect.hybrid <- tidy(oyster_glmm.hybrid, effects = "fixed", conf.int = TRUE) |>
+  filter(term == "dead_density.2sd")
+
+write_csv(vcr_effect.hybrid, "Datasets/Effect sizes/Standardized/vcr_effect.hybrid_2sdX_1sdY.csv")
+

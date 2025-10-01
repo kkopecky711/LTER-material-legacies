@@ -167,3 +167,55 @@ mcr_effect.z <- tidy(coral_glmm.z, effects = "fixed", conf.int = TRUE) |>
   filter(term == "dead_coral_start_z")
 
 write_csv(mcr_effect.z, "Datasets/Effect sizes/Standardized/mcr_effect.z.csv")
+
+## Two-SD approach (predictor scaled by 2*SD; response scaled to 1 SD) ----
+# Scale response to z-score and predictor to 2*SD
+coral_change_filtered <- coral_change_filtered %>%
+  mutate(
+    live_coral_change_pct.z = scale(live_coral_change_pct)[, 1],
+    dead_coral_start.2sd    = (dead_coral_start - mean(dead_coral_start, na.rm = TRUE)) / 
+      (2 * sd(dead_coral_start, na.rm = TRUE))
+  )
+
+coral_glmm.hybrid <- glmmTMB(
+  live_coral_change_pct.z ~ dead_coral_start.2sd + (1 | treatment/plot) + (1 | year),
+  data = coral_change_filtered,
+  family = gaussian()
+)
+summary(coral_glmm.hybrid)
+
+# Diagnostics
+res.hybrid <- simulateResiduals(coral_glmm.hybrid)
+plot(res.hybrid) # Tests are non-significant
+
+## Visualization
+# Extract predictions from model
+preds.hybrid <- ggpredict(coral_glmm.hybrid, terms = "dead_coral_start.2sd")
+
+# Plot model predictions + raw values
+ggplot() +
+  geom_point(data = coral_change_filtered, 
+             aes(x = dead_coral_start.2sd, 
+                 y = live_coral_change_pct.z),
+             color = "darkgrey", 
+             alpha = 0.6) +
+  geom_ribbon(data = preds.hybrid, 
+              aes(x = x, 
+                  ymin = conf.low, 
+                  ymax = conf.high), 
+              alpha = 0.2) +
+  geom_line(data = preds.hybrid, 
+            aes(x = x, 
+                y = predicted), 
+            linewidth = 1.2) +
+  scale_y_continuous(limits = c(-2, 3.4)) +
+  labs(x = "Dead coral cover (scaled by 2×SD; 1 unit = +2 SD)",
+       y = "Change in live coral (Z-score)") +
+  theme_classic(base_size = 14)
+
+## Extract effect size
+# (Coefficient = SDs of Y per +2 SD change in X)
+mcr_effect.hybrid <- tidy(coral_glmm.hybrid, effects = "fixed", conf.int = TRUE) |>
+  filter(term == "dead_coral_start.2sd")
+
+write_csv(mcr_effect.hybrid, "Datasets/Effect sizes/Standardized/mcr_effect.hybrid_2sdX_1sdY.csv")
