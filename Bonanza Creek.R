@@ -15,10 +15,13 @@ setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER mate
 # Load seed data
 seeds <- read_csv("Datasets/Bonanza Creek/AK2004 sites seeds.csv") %>% 
   clean_names() %>% 
-  select(burn, site, bs_stg_ba, total_m2) %>% 
+  select(burn, site, bs_ba, bs_stg_ba, total_m2) %>% 
   mutate(burn = as.factor(burn),
          site = as.factor(site)) %>% 
   drop_na()
+
+# Export .csv for partial regression analysis
+write_csv(seeds, "Datasets/Partial regression/bnz.part_reg.csv")
 
 # Exploratory graph of total seeds ~ basal area
 ggplot(seeds, aes(x = bs_stg_ba, y = total_m2)) +

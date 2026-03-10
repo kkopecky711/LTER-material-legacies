@@ -3,15 +3,14 @@
 # Load required packages
 library(tidyverse)
 library(gt)
+library(flextable)
+library(officer)
+library(pagedown)
 
 # Working directory
 setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER material legacy synthesis')
 
 #### Table S1: Data descriptions and sources ----
-library(tidyverse)
-library(flextable)
-library(officer)
-library(pagedown)
 
 # Read the data
 data_sources <- read_csv("Figures/Tables/Table of data sources_LTER material legacies.csv")
@@ -46,9 +45,30 @@ data_sources.table <- flextable(data_sources) %>%
 
 data_sources.table
 
+# Make the table fit the page width
+data_sources.table <- data_sources.table %>%
+  fit_to_width(max_width = 10)
+
+data_sources.table <- data_sources.table %>%
+  fontsize(size = 9, part = "all") %>%
+  fit_to_width(max_width = 10)
+
+# Define a landscape section
+landscape_section <- prop_section(
+  page_size = page_size(orient = "landscape"),
+  page_margins = page_mar(top = 0.5, bottom = 0.5, left = 0.5, right = 0.5)
+)
+
+
+# Create the Word document
+doc <- read_docx() %>%
+  body_add_par("Table S1. Data sources for material legacy analysis", style = "Normal") %>%
+  body_add_flextable(data_sources.table) #%>%
+  body_end_block_section(landscape_section)
+  
+print(doc, target = "Figures/Tables/data_sources_table.docx")
+
 #### Table S2: GLMM structures and outputs ----
-library(tidyverse)
-library(gt)
 
 # Order ecosystem types according to main figures
 ecosystem_order <- c(
@@ -91,9 +111,6 @@ model_table <- read_csv("Figures/Tables/GLMM structures.csv") %>%
 model_table
 
 #### Table S3: GLMM model outputs ----
-library(tidyverse)
-library(flextable)
-library(officer)
 
 # Define the folder and matching file names with ecosystem labels
 file_paths <- list.files("Datasets/Effect sizes/Raw/", pattern = "*.csv", full.names = TRUE)
@@ -127,7 +144,6 @@ model_outputs_clean <- model_outputs %>%
       TRUE ~ formatC(p.value, format = "f", digits = 3)
     )
   )
-
 
 # Order ecosystem types according to main figures
 ecosystem_order <- c(
@@ -170,14 +186,7 @@ flextable_outputs
 # Optional: Save to Word
 save_as_docx(flextable_outputs, path = "model_outputs_table.docx")
 
-# Optional: Save to PDF (requires Chrome + pagedown)
-# install.packages("pagedown")
-# pagedown::chrome_print("model_outputs_table.html")
-
-
 #### Table S4: Outputs from standardized models ----
-library(tidyverse)
-library(flextable)
 
 # List and load standardized output files
 std_paths <- list.files("Datasets/Effect sizes/Standardized/", full.names = TRUE, pattern = "\\.csv$")

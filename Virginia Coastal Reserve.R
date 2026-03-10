@@ -16,11 +16,12 @@ vcr.raw <- read_csv("Datasets/Virginia Coastal Reserve/Oyster_Count_Data_2022_03
 # Filter original data for just live and dead oysters
 vcr.juv_dead <- vcr.raw %>% 
   clean_names() %>%
-  filter(species == "Box Adult Oyster" | species == "Spat Oyster",
+  filter(species == "Box Adult Oyster" | species == "Spat Oyster" |  species == "Adult Oyster",
          restoration == "Reference") %>% 
   mutate(year = substr(date, nchar(date) - 1, nchar(date)),
          year = paste0("20", year),
          species = case_when(species == "Spat Oyster" ~ "Juvenile",
+                             species == "Adult Oyster" ~ "Adult",
                              TRUE ~ "Dead"),
          obvs_id = paste(year, site, date, sample, sep = "_")) %>%
   select(obvs_id, site, year, date, species, species_count) %>% 
@@ -32,8 +33,12 @@ vcr.juv_dead <- vcr.raw %>%
 vcr.juv_dead.summary <- vcr.juv_dead %>% 
   group_by(year, site) %>% 
   summarize(dead.mean = mean(Dead), 
-            juv.mean = mean(Juvenile)) #%>% 
+            juv.mean = mean(Juvenile),
+            adult.mean = mean(Adult)) #%>% 
   #filter(dead.mean < 250) # Need to verify it's ok to remove this outlier
+
+# Export .csv for partial regression analysis
+write_csv(vcr.juv_dead.summary, "Datasets/Partial regression/vcr.part_reg.csv")
 
 ## Analysis
 # GLMM of mean annual juvenile density ~ mean dead density

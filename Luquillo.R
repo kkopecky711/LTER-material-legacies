@@ -16,7 +16,8 @@ setwd('/Users/kako4300/Library/CloudStorage/OneDrive-UCB-O365/Projects/LTER mate
 luq.seedlings <- read_csv("Datasets/Luquillo/CTESeedlingMeasurementData2003-20212.csv") %>% 
   clean_names() %>% 
   mutate(start_date = as.character(start_date),
-         year = as.numeric(substr(start_date, 1, 4)))
+         year = as.numeric(substr(start_date, 1, 4)),
+         new = as.factor(new))
 
 # Treatment metadata
 luq.cte_ttt <- read_csv("Datasets/Luquillo/CTE_Treatments_0.csv") %>% 
@@ -29,12 +30,13 @@ luq.seedlings <- merge(luq.seedlings, luq.cte_ttt)
 
 luq.seedlings <- luq.seedlings %>% 
   relocate(treatment, .before = block) %>% 
-  select(-c(comments, new))
+  select(-c(comments))
 
 ## Seedlings < 10cm 
 # Create dataframe for seedlings < 10cm in years postimanipulation and pre-hurricane
 seedling_lessthan10 <- luq.seedlings %>%   
   filter(lessthan10cm != "NA",
+         #new != "OLD",
          treatment %in% c("Trim&clear", "Trim+Debris"),
          year %in% c(2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013)) %>% 
   group_by(treatment, year, block, plot) %>% 
@@ -69,30 +71,30 @@ write_csv(luq_effect.raw, "Datasets/Effect sizes/Raw/luq_effect.raw.csv")
 # Get predictions
 lessthan10_preds <- ggpredict(seedling_glmm.raw, terms = "treatment")
 
-# Plot
+# Plot (divide by 3.5 to get units of no./m^2/yr)
 ggplot() +
   geom_jitter(data = seedling_lessthan10,
-              aes(x = treatment, y = seedling.count),
+              aes(x = treatment, y = seedling.count/3.5),
               color = "#6B6C58", 
               alpha = 0.6, 
               width = 0.15) +
   geom_line(data = lessthan10_preds, 
-            aes(x = x, y = predicted,
+            aes(x = x, y = predicted/3.5,
                 group = group)) +
   geom_errorbar(data = lessthan10_preds, 
-                aes(x = x, y = predicted, 
-                    ymin = conf.low, ymax = conf.high), 
+                aes(x = x, y = predicted/3.5, 
+                    ymin = conf.low/3.5, ymax = conf.high/3.5), 
                 width = 0) +
   geom_point(data = lessthan10_preds, 
-             aes(x = x, y = predicted),
+             aes(x = x, y = predicted/3.5),
              size = 4,
              color = "black") +
   geom_point(data = lessthan10_preds, 
-             aes(x = x, y = predicted),
+             aes(x = x, y = predicted/3.5),
              size = 3,
              color = "#6B6C58") +
   labs(x = "Canopy detritus",
-       y = "Tree seedling counts (no./yr)") +
+       y = Tree~seedling~counts~(no./m^2/yr)) +
   theme_classic(base_size = 14)
 
 ## Z-score < 10cm seedling model

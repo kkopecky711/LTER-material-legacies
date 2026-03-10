@@ -35,7 +35,10 @@ live_dead.growth <- live_dead %>%
          dw_cover_ha = total_cover/area_ha,
          dw_area_ha = total_area/area_ha,
          tree_growth_ind = growth_baph_spp / (tph0_spp * surv_prop_spp) / d_year) %>% 
-  select(c(stand, plot, cwd_year, dw_mass_ha, dw_vol_ha, dw_cover_ha, dw_area_ha, tree_growth_ind))
+  select(c(stand, plot, baph0_spp, baoh1_spp, cwd_year, dw_mass_ha, dw_vol_ha, dw_cover_ha, dw_area_ha, tree_growth_ind))
+
+# Write .csv file for partial regression analysis
+write_csv(live_dead.growth, "Datasets/Partial regression/hja.part_reg.csv")
 
 ## Analysis
 tree_glmm.raw <- glmmTMB(

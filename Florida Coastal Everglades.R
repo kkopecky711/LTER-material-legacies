@@ -194,3 +194,45 @@ fce_effect.hybrid <- tidy(root_glmm.hybrid, effects = "fixed", conf.int = TRUE) 
   filter(term == "litter.2sd")
 
 write_csv(fce_effect.hybrid, "Datasets/Effect sizes/Standardized/fce_effect.hybrid_2sdX_1sdY.csv")
+
+#### Data for partial regression analysis ####
+## Root production data
+root_biomass.irma <- read_csv("Datasets/Florida Coastal Everglades/FCE_1278_Root_Biomass_post-Irma.csv") %>%
+  clean_names() %>%
+  select(c("sitename", "month", "year", "point", "position", "location", "core_id", "root_size", "root_size_class", "root_biomass"))
+
+# Summarize by plot
+root_biomass.summary <- root_biomass.irma %>%
+  filter(root_biomass > 0) %>% 
+  mutate(plot_id = if_else(point %in% c("A", "B"), 1, 2)) %>% 
+  group_by(sitename, plot_id) %>% 
+  summarize(root_biomass.mean = mean(root_biomass),
+            root_biomass.se = sd(root_biomass)/sqrt(n())) %>% 
+  ungroup()
+
+# Merge with root production-litter dataframe
+root_prod.litter.root_biomass <- root_prod.litter %>% 
+  left_join(root_biomass.summary, by = c("sitename", "plot_id")) %>% 
+  drop_na()
+
+write_csv(root_prod.litter.root_biomass, "Datasets/Partial regression/fce.part_reg.csv")
+
+### With tree growth data
+trees <- read_csv("Datasets/Florida Coastal Everglades/LT_PP_Rivera_002.csv") %>% 
+  clean_names() %>% 
+  mutate(date = as.character(date),
+         year = substr(date, 1, 4)) %>% 
+  filter(year == '2017',
+         tree_dbh > 0) %>% 
+ # mutate(plot_id = if_else(point %in% c("A", "B"), 1, 2)) %>% 
+  group_by(sitename, plot_id) %>% 
+  summarize(tree_dbh.mean = mean(tree_dbh),
+            tree_dbh.se = sd(tree_dbh)/sqrt(n())) %>% 
+  ungroup()
+
+# Merge with root production-litter-biomass dataframe
+root_prod.litter.root_biomass.tree_dbh <- root_prod.litter.root_biomass %>% 
+  left_join(trees, by = c("sitename", "plot_id")) %>% 
+  drop_na()
+
+write_csv(root_prod.litter.root_biomass.tree_dbh, "Datasets/Partial regression/fce.part_reg.csv")
