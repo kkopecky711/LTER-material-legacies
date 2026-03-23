@@ -21,7 +21,16 @@ lter_sites <- data.frame(
   lat = c(
     -17.4920, 33.2502, 64.7925, 39.1006, 42.5378,
     37.4151, 31.3722, 25.3800, 18.3392, 44.2332
+  ),
+  ecosystem = c(
+    "Marine", "Marine", "Terrestrial", "Terrestrial", "Terrestrial",
+    "Marine", "Marine", "Marine", "Terrestrial", "Terrestrial"
   )
+)
+
+ecosystem_colors <- c(
+  "Marine" = "#20618D",
+  "Terrestrial" = "#6B6C58"
 )
 
 # Separate MCR and the rest
@@ -37,13 +46,13 @@ main_map <- ggplot(data = world) +
   geom_point(data = main_sites, 
              aes(x = lon, y = lat), 
              color = "black", 
-             size = 2, 
+             size = 2.5, 
              shape = 24) +
-  geom_point(data = main_sites, 
-             aes(x = lon, y = lat), 
-             color = "#20618D", 
-             size = 1.5, 
-             shape = 17) +
+  geom_point(data = main_sites,
+             aes(x = lon, y = lat, fill = ecosystem),
+             color = "black",
+             size = 3,
+             shape = 24) +
   geom_label(data = main_sites, aes(x = lon, y = lat, label = site),
              vjust = -0.4, 
              hjust = 0.5, 
@@ -54,9 +63,11 @@ main_map <- ggplot(data = world) +
   coord_sf(xlim = c(-152.2, -57), 
            ylim = c(15, 70), 
            expand = FALSE) +
+  scale_fill_manual(values = ecosystem_colors) +
   theme_minimal() +
   theme(panel.background = element_rect(fill = "lightblue"),
-    panel.grid.major = element_line(color = "white", linewidth = 0.1)) +
+    panel.grid.major = element_line(color = "white", linewidth = 0.1),
+    legend.position = "none") +
   labs(x = "Longitude",
        y = "Latitude")
 
@@ -66,13 +77,13 @@ inset_map <- ggplot(data = world) +
   geom_point(data = mcr_site, 
              aes(x = lon, y = lat), 
              color = "black", 
-             size = 2, 
+             size = 2.5, 
              shape = 24) +
-  geom_point(data = mcr_site, 
-             aes(x = lon, y = lat), 
-             color = "#20618D", 
-             size = 1.5, 
-             shape = 17) +
+  geom_point(data = mcr_site,
+             aes(x = lon, y = lat, fill = ecosystem),
+             color = "black",
+             size = 3,
+             shape = 24) +
   geom_label(data = mcr_site, aes(x = lon, y = lat, label = site),
              vjust = -0.4, 
              hjust = 0.5, 
@@ -85,16 +96,27 @@ inset_map <- ggplot(data = world) +
            expand = FALSE) +
   scale_x_continuous(breaks = c(-150, -149)) +
   scale_y_continuous(breaks = c(-17, -17.5, -18)) +
+  scale_fill_manual(values = ecosystem_colors) +
   theme_minimal() +
   theme(
-    panel.background = element_rect(fill = "lightblue"),
+    panel.background = element_rect(fill = "lightblue", color = NA),
+    plot.background  = element_rect(fill = "transparent", color = NA),
+    panel.grid.major = element_line(color = "white", linewidth = 0.1),
+    axis.text = element_text(size = 6),
+    axis.title = element_text(size = 7),
+    plot.title = element_text(size = 9), legend.position = "none"
+  ) +
+  labs(x = "",
+       y = "") +
+  theme(
+    panel.background = element_rect(fill = "lightblue", color = NA),
+    plot.background  = element_rect(fill = "transparent", color = NA),
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.6),
     panel.grid.major = element_line(color = "white", linewidth = 0.1),
     axis.text = element_text(size = 6),
     axis.title = element_text(size = 7),
     plot.title = element_text(size = 9)
-  ) +
-  labs(x = "",
-       y = "")
+  )
 
 # ---- Combine using cowplot ----
 final_map <- ggdraw() +
