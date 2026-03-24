@@ -57,11 +57,11 @@ ggplot(preds, aes(x = x, y = predicted)) +
              aes(x = bs_stg_ba,
                  y = total_m2),
              alpha = 0.6,
-             color = "#6B6C58") +
+             color = "#464724") +
   geom_line(linewidth = 0.75) + 
   geom_ribbon(aes(ymin = conf.low, ymax = conf.high), 
               alpha = 0.3,
-              fill = "#6B6C58") +
+              fill = "#464724") +
   labs(
     x = "Burned tree basal area (m²)",
     y = expression("Black spruce seed density (no./m"^2*", log"[10]*")")

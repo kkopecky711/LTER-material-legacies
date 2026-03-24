@@ -75,7 +75,7 @@ lessthan10_preds <- ggpredict(seedling_glmm.raw, terms = "treatment")
 ggplot() +
   geom_jitter(data = seedling_lessthan10,
               aes(x = treatment, y = seedling.count/3.5),
-              color = "#6B6C58", 
+              color = "#464724", 
               alpha = 0.6, 
               width = 0.15) +
   geom_line(data = lessthan10_preds, 
@@ -92,7 +92,7 @@ ggplot() +
   geom_point(data = lessthan10_preds, 
              aes(x = x, y = predicted/3.5),
              size = 3,
-             color = "#6B6C58") +
+             color = "#464724") +
   labs(x = "Canopy detritus",
        y = Tree~seedling~counts~(no./m^2/yr)) +
   theme_classic(base_size = 14)

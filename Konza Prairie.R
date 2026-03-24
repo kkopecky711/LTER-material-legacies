@@ -90,7 +90,7 @@ ggplot() +
   geom_jitter(
     data = knz.merged,
     aes(x = burn_cat, y = lvgrass.mean*10),
-    color = "#6B6C58", 
+    color = "#464724", 
     alpha = 0.6, 
     width = 0.15) +
   geom_errorbar(
@@ -108,7 +108,7 @@ ggplot() +
     data = preds,
     aes(x = x, y = predicted*10),
     size = 3,
-    color = "#6B6C58") +
+    color = "#464724") +
   labs(x = "Grass litter",
     y = "Live grass biomass (g/m²/yr)") +
   theme_classic(base_size = 14)

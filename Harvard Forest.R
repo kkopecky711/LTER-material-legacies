@@ -117,7 +117,7 @@ preds <- ggpredict(hemlock_glmm.raw.zi, terms = "trt")
 
 ggplot() +
   geom_jitter(data = gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock),
-              color = "#6B6C58",
+              color = "#464724",
               width = 0.15, 
               alpha = 0.6) +
   geom_line(data = preds, 
@@ -133,13 +133,13 @@ ggplot() +
   geom_point(data = preds,
              aes(x = x, y = predicted),
              size = 3,
-             color = "#6B6C58") +
+             color = "#464724") +
   labs(x = "Dead hemlock status") +
   theme_classic(base_size = 14)
 
 # Log-transformed for visual purposes
 ggplot(gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock + 1)) +
-  geom_jitter(color = "#6B6C58",
+  geom_jitter(color = "#464724",
               width = 0.15, 
               alpha = 0.6) +
   geom_line(data = preds, aes(x = x, y = predicted + 1, group = group)) +
@@ -147,7 +147,7 @@ ggplot(gird_log.saps, aes(x = reorder(trt, dens_ha_hemlock), y = dens_ha_hemlock
                   inherit.aes = FALSE,
                   size = 0.75, 
                   color = "black", 
-                  fill = "#6B6C58", 
+                  fill = "#464724", 
                   shape = 21) +
   scale_x_discrete(labels = c("girdled" = "Standing", "logged" = "Removed")) +
   scale_y_continuous(trans = "log10",

@@ -53,7 +53,7 @@ ggplot(effect_sizes, aes(x = estimate, y = reorder(ecosystem, estimate), color =
   labs(x = "Effect size (± 95% CI)",
        y = "Ecosystem type") +
   scale_alpha_identity() +  # uses raw alpha values
-  scale_color_manual(values = c("Marine" = "#20618D", "Terrestrial" = "#6B6C58"),
+  scale_color_manual(values = c("Marine" = "#20618D", "Terrestrial" = "#464724"),
                      name = "") +
   scale_x_continuous(expand = c(0.09, 0)) +
   theme_minimal(base_size = 12) +
@@ -83,7 +83,7 @@ ggplot(effect_sizes, aes(x = estimate.abs, y = reorder(ecosystem, estimate.abs),
   labs(x = "Effect size (± 95% CI), abs. value",
        y = "Ecosystem type") +
   scale_alpha_identity() +  # uses raw alpha values
-  scale_color_manual(values = c("Marine" = "#20618D", "Terrestrial" = "#6B6C58"),
+  scale_color_manual(values = c("Marine" = "#20618D", "Terrestrial" = "#464724"),
                      name = "") +
   scale_x_continuous(expand = c(0.09, 0)) +
   theme_minimal(base_size = 12) +

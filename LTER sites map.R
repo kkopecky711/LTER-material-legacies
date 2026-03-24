@@ -30,7 +30,7 @@ lter_sites <- data.frame(
 
 ecosystem_colors <- c(
   "Marine" = "#20618D",
-  "Terrestrial" = "#6B6C58"
+  "Terrestrial" = "#464724"
 )
 
 # Separate MCR and the rest
@@ -42,7 +42,7 @@ bigsur2 = c("#20618D", "#91AAC4", "#6B6C58", "#464724", "#83932D", "#CAB89F")
 
 # ---- MAIN MAP (Excludes MCR) ----
 main_map <- ggplot(data = world) +
-  geom_sf(fill = "gray90", color = "gray40") +
+  geom_sf(fill = "gray95", color = "gray40") +
   geom_point(data = main_sites, 
              aes(x = lon, y = lat), 
              color = "black", 
@@ -54,7 +54,7 @@ main_map <- ggplot(data = world) +
              size = 3,
              shape = 24) +
   geom_label(data = main_sites, aes(x = lon, y = lat, label = site),
-             vjust = -0.4, 
+             vjust = -0.5, 
              hjust = 0.5, 
              size = 3,
              label.size = 0.2, 
@@ -73,7 +73,7 @@ main_map <- ggplot(data = world) +
 
 # ---- INSET MAP for MCR ----
 inset_map <- ggplot(data = world) +
-  geom_sf(fill = "gray90", color = "gray40") +
+  geom_sf(fill = "gray95", color = "gray40") +
   geom_point(data = mcr_site, 
              aes(x = lon, y = lat), 
              color = "black", 
@@ -85,7 +85,7 @@ inset_map <- ggplot(data = world) +
              size = 3,
              shape = 24) +
   geom_label(data = mcr_site, aes(x = lon, y = lat, label = site),
-             vjust = -0.4, 
+             vjust = -0.5, 
              hjust = 0.5, 
              size = 3,
              label.size = 0.2, 

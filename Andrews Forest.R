@@ -67,7 +67,7 @@ ggplot() +
   geom_point(data = live_dead.growth, 
              aes(x = dw_mass_ha, y = tree_growth_ind),
              alpha = 0.6,
-             color = "#6B6C58") +
+             color = "#464724") +
   geom_line(data = preds, 
             aes(x = x, y = predicted),
             linewidth = 0.75) +
@@ -75,7 +75,7 @@ ggplot() +
               aes(x = x, y = predicted, 
                   ymin = conf.low, ymax = conf.high), 
               alpha = 0.3,
-              fill = "#6B6C58") +
+              fill = "#464724") +
   labs(x = "Dead wood mass (kg/ha)",
        y = "Tree growth (Douglas fir; m²/ind./yr)") +
   theme_classic(base_size = 14)

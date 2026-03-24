@@ -140,7 +140,7 @@ ggplot() +
 
 # Extract effect size and CI, write to .csv file
 fce_effect.z <- tidy(root_glmm.z, effects = "fixed", conf.int = TRUE) %>% 
-  filter(term == "litter_z")
+  filter(term == "litter.z")
 
 write_csv(fce_effect.z, "Datasets/Effect sizes/Standardized/fce_effect.z.csv")
 
