@@ -13,18 +13,18 @@ world <- ne_countries(scale = "large", returnclass = "sf")
 
 # LTER site data with 3-letter codes
 lter_sites <- data.frame(
-  site = c("MCR", "SONGS", "BNZ", "KNZ", "HFR", "VCR", "GCE", "FCE", "LUQ", "AND"),
+  site = c("MCR", "SONGS", "BNZ", "KNZ", "HFR", "VCR", "GCE", "FCE", "LUQ", "AND", "SEV"),
   lon = c(
     -149.8260, -117.3745, -147.8839, -96.5610, -72.1760,
-    -75.6850, -81.2889, -80.6800, -65.8201, -122.1762
+    -75.6850, -81.2889, -80.6800, -65.8201, -122.1762, -106.882
   ),
   lat = c(
     -17.4920, 33.2502, 64.7925, 39.1006, 42.5378,
-    37.4151, 31.3722, 25.3800, 18.3392, 44.2332
+    37.4151, 31.3722, 25.3800, 18.3392, 44.2332, 34.353
   ),
   ecosystem = c(
     "Marine", "Marine", "Terrestrial", "Terrestrial", "Terrestrial",
-    "Marine", "Marine", "Marine", "Terrestrial", "Terrestrial"
+    "Marine", "Marine", "Marine", "Terrestrial", "Terrestrial", "Terrestrial"
   )
 )
 
@@ -57,7 +57,7 @@ main_map <- ggplot(data = world) +
              vjust = -0.5, 
              hjust = 0.5, 
              size = 3,
-             label.size = 0.2, 
+             linewidth = 0.2, 
              fill = "white", 
              color = "black") +
   coord_sf(xlim = c(-152.2, -57), 
@@ -88,7 +88,7 @@ inset_map <- ggplot(data = world) +
              vjust = -0.5, 
              hjust = 0.5, 
              size = 3,
-             label.size = 0.2, 
+             linewidth = 0.2, 
              fill = "white", 
              color = "black") +
   coord_sf(xlim = c(-150.2, -149), 
